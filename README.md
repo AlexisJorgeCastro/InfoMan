@@ -6,8 +6,6 @@ View your app in AI Studio: https://ai.studio/apps/52d26c9e-3ef8-4c3b-bea3-56ea9
 
 FOR TESTING:
 RFID12345
-Jose Rizal (ID: 2024-00001, Email: jose.rizal@neu.edu.ph)
-Andres Bonifacio (ID: 2024-00002, Email: andres.b@neu.edu.ph)
 
 ## Run Locally
 
