@@ -314,8 +314,8 @@ export default function AdminDashboard() {
     doc.addPage();
     doc.text('DETAILED VISITOR LOGS', 14, 20);
     const logData = logs.map(l => [
-      l.name,
-      l.college,
+      l.visitor_name,
+      l.visitor_college,
       l.purpose,
       format(new Date(l.timestamp), 'MMM dd, yyyy p')
     ]);
@@ -578,8 +578,8 @@ export default function AdminDashboard() {
             <tbody className="divide-y divide-zinc-800/30">
               {logs.map((log) => (
                 <tr key={log.id} className="hover:bg-zinc-500/5 transition-colors">
-                  <td className="p-4 font-bold text-sm uppercase text-[var(--text-primary)]">{log.name}</td>
-                  <td className="p-4 text-[var(--text-secondary)] uppercase text-[10px]">{log.college}</td>
+                  <td className="p-4 font-bold text-sm uppercase text-[var(--text-primary)]">{log.visitor_name}</td>
+                  <td className="p-4 text-[var(--text-secondary)] uppercase text-[10px]">{log.visitor_college}</td>
                   <td className="p-4">
                     <span className="px-2 py-1 bg-[var(--tag-bg)] rounded text-[10px] font-bold text-[var(--neon-blue)]">{log.purpose}</span>
                   </td>
