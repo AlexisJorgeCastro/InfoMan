@@ -1,13 +1,14 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
-
 # Run and deploy your AI Studio app
 
 This contains everything you need to run your app locally.
 
 View your app in AI Studio: https://ai.studio/apps/52d26c9e-3ef8-4c3b-bea3-56ea9b0348cf
-
+## FOR TESTING:
+## FID12345
+## Jose Rizal (ID: 24-00003-001, Email: jose.rizal@neu.edu.ph)
+## Andres Bonifacio (ID: 24-00004-001, Email: andres.b@neu.edu.ph)
+## Alexis Pidlaoan (ID: 25-10002-000, Email: alexis.pidlaoan@neu.edu.ph)
+## Klein Balazon (ID: 24-11111-100, Email: klein.balazon@neu.edu.ph)
 ## Run Locally
 
 **Prerequisites:**  Node.js
