@@ -107,7 +107,7 @@ export default function VisitorTerminal() {
         visitor_id: visitor.rfid_tag,
         visitor_college: visitor.college || 'N/A',
         visitor_role: visitor.role || 'student',
-        visitor_blocked: visitor.is_blocked || false,
+        is_blocked: visitor.is_blocked || false,
         purpose,
         timestamp: Timestamp.now()
       });

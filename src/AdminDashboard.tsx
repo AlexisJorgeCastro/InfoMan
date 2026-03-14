@@ -18,7 +18,8 @@ import {
   limit,
   doc,
   getDoc,
-  addDoc
+  addDoc,
+  updateDoc
 } from 'firebase/firestore';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, signInAnonymously } from 'firebase/auth';
 import { db, auth } from './firebase';
@@ -49,6 +50,8 @@ export default function AdminDashboard() {
   const [showRegisterModal, setShowRegisterModal] = React.useState(false);
   const [showDummyLogin, setShowDummyLogin] = React.useState(false);
   const [loginTab, setLoginTab] = React.useState<'google' | 'manual'>('manual');
+  const [activeTab, setActiveTab] = React.useState<'overview' | 'logs' | 'students'>('overview');
+  const [students, setStudents] = React.useState<any[]>([]);
   const [isLoggingIn, setIsLoggingIn] = React.useState(false);
   const [dummyCredentials, setDummyCredentials] = React.useState({ username: '', password: '' });
   const [newStudent, setNewStudent] = React.useState({ 
@@ -206,6 +209,32 @@ export default function AdminDashboard() {
     }
   };
 
+  const toggleBlock = async (rfidTag: string, currentStatus: boolean) => {
+    try {
+      const q = query(collection(db, 'visitors'), where('rfid_tag', '==', rfidTag));
+      const snap = await getDocs(q);
+      
+      if (snap.empty) {
+        setNotification({ message: "Visitor record not found", type: 'error' });
+        return;
+      }
+
+      const visitorId = snap.docs[0].id;
+      await updateDoc(doc(db, 'visitors', visitorId), {
+        is_blocked: !currentStatus
+      });
+
+      setNotification({ 
+        message: `Visitor ${!currentStatus ? 'BLOCKED' : 'UNBLOCKED'} successfully`, 
+        type: 'success' 
+      });
+      fetchData();
+    } catch (err: any) {
+      console.error("Toggle Block Error:", err);
+      setNotification({ message: "Failed to update status", type: 'error' });
+    }
+  };
+
   const fetchData = React.useCallback(async () => {
     if (!isAdmin) return;
 
@@ -220,6 +249,24 @@ export default function AdminDashboard() {
       })) as any[];
 
       setLogs(allLogs);
+
+      // Fetch all visitors (students)
+      const vSnap = await getDocs(collection(db, 'visitors'));
+      const allStudents = vSnap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setStudents(allStudents);
+
+      // Map current block status to logs
+      const logsWithCurrentStatus = allLogs.map(log => {
+        const student = allStudents.find(s => s.rfid_tag === log.visitor_id);
+        return {
+          ...log,
+          is_blocked: student ? student.is_blocked : log.is_blocked
+        };
+      });
+      setLogs(logsWithCurrentStatus);
 
       // Calculate Stats
       let filteredLogs = allLogs;
@@ -901,10 +948,22 @@ export default function AdminDashboard() {
                   </td>
                   <td className="p-4 text-[var(--text-secondary)] text-[10px]">{format(new Date(log.timestamp), 'MMM dd, p')}</td>
                   <td className="p-4">
-                    {log.is_blocked ? 
-                      <span className="text-[var(--neon-red)] flex items-center gap-1 text-[10px] font-bold tracking-tighter"><ShieldAlert size={14}/> BLOCKED</span> : 
-                      <span className="text-[var(--neon-green)] flex items-center gap-1 text-[10px] font-bold tracking-tighter"><Shield size={14}/> AUTHORIZED</span>
-                    }
+                    <div className="flex items-center gap-4">
+                      {log.is_blocked ? 
+                        <span className="text-[var(--neon-red)] flex items-center gap-1 text-[10px] font-bold tracking-tighter"><ShieldAlert size={14}/> BLOCKED</span> : 
+                        <span className="text-[var(--neon-green)] flex items-center gap-1 text-[10px] font-bold tracking-tighter"><Shield size={14}/> AUTHORIZED</span>
+                      }
+                      <button 
+                        onClick={() => toggleBlock(log.visitor_id, !!log.is_blocked)}
+                        className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${
+                          log.is_blocked 
+                            ? 'bg-[var(--neon-green)] text-black hover:scale-105' 
+                            : 'bg-[var(--neon-red)] text-white hover:scale-105'
+                        }`}
+                      >
+                        {log.is_blocked ? 'Unblock' : 'Block'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
