@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { CreditCard, CheckCircle2, BookOpen, Search, Monitor, PenTool, Mail, Users, LogIn } from 'lucide-react';
+import { CreditCard, CheckCircle2, BookOpen, Search, Monitor, PenTool, Mail, Users, LogIn, Sun, Moon } from 'lucide-react';
 import { format } from 'date-fns';
 import { 
   collection, 
@@ -102,9 +102,12 @@ export default function VisitorTerminal() {
   const submitLog = async (purpose: string) => {
     try {
       await addDoc(collection(db, 'logs'), {
-        visitor_id: visitor.id,
         visitor_name: visitor.name,
+        visitor_email: visitor.email,
+        visitor_id: visitor.rfid_tag,
         visitor_college: visitor.college || 'N/A',
+        visitor_role: visitor.role || 'student',
+        visitor_blocked: visitor.is_blocked || false,
         purpose,
         timestamp: Timestamp.now()
       });
@@ -146,21 +149,8 @@ export default function VisitorTerminal() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Multi-layered Gradient Background */}
-      <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-0 overflow-hidden">
-        {/* Primary Glows */}
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[var(--neon-blue)] rounded-full blur-[120px] opacity-10"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[var(--neon-green)] rounded-full blur-[120px] opacity-10"></div>
-        
-        {/* Secondary Accents */}
-        <div className="absolute top-[20%] right-[10%] w-[30%] h-[30%] bg-[var(--neon-blue)] rounded-full blur-[100px] opacity-5"></div>
-        <div className="absolute bottom-[20%] left-[10%] w-[30%] h-[30%] bg-[var(--neon-green)] rounded-full blur-[100px] opacity-5"></div>
-        
-        {/* The Gradient Overlay the user liked */}
-        <div className="absolute inset-0 bg-gradient-to-tr from-[var(--bg-primary)] via-transparent to-[var(--bg-primary)] opacity-60"></div>
-        <div className="absolute inset-0 bg-gradient-to-b from-[var(--bg-primary)]/20 via-transparent to-[var(--bg-primary)]/20"></div>
-      </div>
-
+      <div className="atmosphere" />
+      
       <div className="w-full max-w-2xl text-center z-10">
         <AnimatePresence mode="wait">
           {step === 'idle' && (

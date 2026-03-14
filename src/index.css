@@ -18,6 +18,8 @@
   --card-bg: rgba(15, 23, 42, 0.6);
   --card-border: rgba(0, 242, 255, 0.2);
   --tag-bg: rgba(30, 41, 59, 0.5);
+  --glass-surface: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.1);
   font-family: "Orbitron", sans-serif;
 }
 
@@ -32,6 +34,8 @@
   --card-bg: rgba(255, 255, 255, 0.8);
   --card-border: rgba(0, 136, 204, 0.2);
   --tag-bg: rgba(0, 136, 204, 0.1);
+  --glass-surface: rgba(0, 0, 0, 0.02);
+  --glass-border: rgba(0, 0, 0, 0.1);
 }
 
 body {
@@ -40,6 +44,31 @@ body {
   color: var(--text-primary);
   font-family: "Orbitron", sans-serif;
   transition: background-color 0.3s ease, color 0.3s ease;
+  overflow-x: hidden;
+}
+
+/* Atmospheric background—layered gradients */
+.atmosphere {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  background: 
+    radial-gradient(circle at 50% 30%, rgba(0, 242, 255, 0.1) 0%, transparent 60%),
+    radial-gradient(circle at 10% 80%, rgba(57, 255, 20, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 90% 10%, rgba(255, 49, 49, 0.05) 0%, transparent 50%);
+  filter: blur(60px);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.light .atmosphere {
+  background: 
+    radial-gradient(circle at 50% 30%, rgba(0, 136, 204, 0.05) 0%, transparent 60%),
+    radial-gradient(circle at 10% 80%, rgba(34, 139, 34, 0.03) 0%, transparent 50%);
+  opacity: 0.4;
 }
 
 /* Futuristic Header Styles */

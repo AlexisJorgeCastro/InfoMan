@@ -3,7 +3,7 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, LineChart, Line 
 } from 'recharts';
-import { Shield, ShieldAlert, Download, Users, Calendar, Filter, Activity, LogIn } from 'lucide-react';
+import { Shield, ShieldAlert, Download, Users, Calendar, Filter, Activity, LogIn, Sun, Moon, Trash2, RefreshCw } from 'lucide-react';
 import { format, startOfDay, subDays, isWithinInterval } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -20,12 +20,14 @@ import {
   getDoc,
   addDoc
 } from 'firebase/firestore';
-import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, signInAnonymously } from 'firebase/auth';
 import { db, auth } from './firebase';
+import { setDoc } from 'firebase/firestore';
 
 const CHART_COLORS = ['#1e40af', '#166534', '#92400e', '#991b1b', '#5b21b6'];
 
 const COLLEGES = [
+  "College of Informatics and Computing Studies",
   "College of Computer Studies",
   "College of Arts and Sciences",
   "College of Education",
@@ -45,8 +47,44 @@ export default function AdminDashboard() {
   const [isAdmin, setIsAdmin] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [showRegisterModal, setShowRegisterModal] = React.useState(false);
-  const [newStudent, setNewStudent] = React.useState({ name: '', email: '', rfid_tag: '', college: COLLEGES[0] });
+  const [showDummyLogin, setShowDummyLogin] = React.useState(false);
+  const [loginTab, setLoginTab] = React.useState<'google' | 'manual'>('manual');
+  const [isLoggingIn, setIsLoggingIn] = React.useState(false);
+  const [dummyCredentials, setDummyCredentials] = React.useState({ username: '', password: '' });
+  const [newStudent, setNewStudent] = React.useState({ 
+    firstName: '', 
+    middleName: '', 
+    lastName: '', 
+    email: '', 
+    rfid_tag: '', 
+    college: COLLEGES[0] 
+  });
   const [registering, setRegistering] = React.useState(false);
+  const [registrationPreview, setRegistrationPreview] = React.useState<any>(null);
+  const [showResetConfirm, setShowResetConfirm] = React.useState(false);
+  const [notification, setNotification] = React.useState<{message: string, type: 'success' | 'error'} | null>(null);
+  const isAuthenticatingTester = React.useRef(false);
+
+  React.useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
+
+  React.useEffect(() => {
+    const email = `${newStudent.firstName.toLowerCase()}.${newStudent.lastName.toLowerCase()}@neu.edu.ph`.replace(/\s+/g, '');
+    setNewStudent(prev => ({ ...prev, email }));
+  }, [newStudent.firstName, newStudent.lastName]);
+
+  const generateStudentId = async () => {
+    const year = new Date().getFullYear().toString().slice(-2);
+    const q = query(collection(db, 'visitors'));
+    const snap = await getDocs(q);
+    const count = snap.size + 1;
+    const sequence = count.toString().padStart(5, '0');
+    return `${year}-${sequence}-000`;
+  };
 
   React.useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
@@ -56,6 +94,22 @@ export default function AdminDashboard() {
         const adminEmail = "alexis.castro@neu.edu.ph";
         if (u.email === adminEmail) {
           setIsAdmin(true);
+        } else if (u.isAnonymous) {
+          // If we are currently in the middle of dummyLogin, let it handle the state
+          if (isAuthenticatingTester.current) return;
+
+          // Check if it's a verified tester session
+          try {
+            const userDoc = await getDoc(doc(db, 'users', u.uid));
+            if (userDoc.exists() && userDoc.data().role === 'tester') {
+              setIsAdmin(true);
+            } else {
+              setIsAdmin(false);
+            }
+          } catch (err) {
+            console.error("Auth State Check Error:", err);
+            setIsAdmin(false);
+          }
         } else {
           // Check users collection for role
           const userDoc = await getDoc(doc(db, 'users', u.uid));
@@ -79,6 +133,76 @@ export default function AdminDashboard() {
       await signInWithPopup(auth, provider);
     } catch (err: any) {
       console.error("Login Failed:", err);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      setIsAdmin(false);
+      setUser(null);
+    } catch (err: any) {
+      console.error("Logout Failed:", err);
+    }
+  };
+
+  const switchAccount = async () => {
+    await logout();
+    await login();
+  };
+
+  const dummyLogin = async (e: React.FormEvent | React.MouseEvent) => {
+    if (e) e.preventDefault();
+    
+    // Aggressive logging for debugging
+    console.log("Login Triggered");
+    if (typeof window !== 'undefined') {
+      // We'll use a notification instead of alert to be less intrusive but still visible
+      setNotification({ message: "Starting authorization process...", type: 'success' });
+    }
+
+    const user_id = dummyCredentials.username.trim();
+    const pass = dummyCredentials.password.trim();
+
+    if (user_id === 'admin_test' && pass === 'neu_admin_2026') {
+      setIsLoggingIn(true);
+      isAuthenticatingTester.current = true;
+      
+      try {
+        if (!auth) throw new Error("Firebase Auth is not initialized.");
+        
+        console.log("Calling signInAnonymously...");
+        const cred = await signInAnonymously(auth);
+        console.log("Auth Success:", cred.user.uid);
+        
+        // Create a temporary tester record in Firestore to grant DB permissions
+        await setDoc(doc(db, 'users', cred.user.uid), {
+          role: 'tester',
+          secret: 'neu_tester_2026',
+          displayName: 'Tester Admin',
+          email: 'tester@neu.edu.ph',
+          timestamp: new Date().toISOString()
+        });
+        
+        setIsAdmin(true);
+        setUser({ email: 'tester@neu.edu.ph', displayName: 'Tester Admin', isAnonymous: true, uid: cred.user.uid });
+        setNotification({ message: "Tester Access Granted!", type: 'success' });
+      } catch (err: any) {
+        console.error("Tester Login Error:", err);
+        let msg = err.message || "Unknown error occurred";
+        if (err.code === 'auth/operation-not-allowed') {
+          msg = "Anonymous Auth is disabled. Please enable it in Firebase Console > Authentication > Sign-in method.";
+        } else if (err.code === 'auth/network-request-failed') {
+          msg = "Network error. Please check your internet connection and authorized domains.";
+        }
+        setNotification({ message: "Login Error: " + msg, type: 'error' });
+        if (typeof window !== 'undefined') window.alert("Login Error: " + msg);
+      } finally {
+        setIsLoggingIn(false);
+        isAuthenticatingTester.current = false;
+      }
+    } else {
+      setNotification({ message: "Invalid Tester ID or Access Key", type: 'error' });
     }
   };
 
@@ -159,21 +283,137 @@ export default function AdminDashboard() {
   );
 
   if (!isAdmin) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#050505] p-4">
-      <div className="stat-card p-12 rounded-[3rem] text-center max-w-md w-full">
-        <ShieldAlert size={64} className="text-[var(--neon-red)] mx-auto mb-8" />
-        <h1 className="text-3xl font-black mb-4 glow-text">ACCESS DENIED</h1>
-        <p className="text-[var(--text-secondary)] text-sm mb-8 uppercase tracking-widest">Admin Privileges Required</p>
-        {!user ? (
+    <div className="min-h-screen flex items-center justify-center bg-[#050505] p-4 relative overflow-hidden">
+      <div className="atmosphere" />
+      
+      {notification && (
+        <div className={`fixed top-12 left-1/2 -translate-x-1/2 z-[500] px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-2xl animate-in slide-in-from-top-4 duration-300 ${
+          notification.type === 'success' ? 'bg-[var(--neon-green)] text-black' : 'bg-[var(--neon-red)] text-white'
+        }`}>
+          {notification.message}
+        </div>
+      )}
+
+      <div className="stat-card p-8 md:p-12 rounded-[3rem] text-center max-w-lg w-full z-[100] border-zinc-800/50 relative pointer-events-auto">
+        <ShieldAlert size={56} className="text-[var(--neon-red)] mx-auto mb-6" />
+        <h1 className="text-3xl font-black mb-2 glow-text">ACCESS DENIED</h1>
+        <p className="text-[var(--text-secondary)] text-[10px] mb-8 uppercase tracking-[0.3em] font-bold">Authentication Required</p>
+        
+        <div className="flex p-1 bg-black/40 rounded-2xl border border-zinc-800 mb-8">
           <button 
-            onClick={login}
-            className="w-full bg-[var(--neon-blue)] text-black py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3"
+            onClick={() => setLoginTab('manual')}
+            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              loginTab === 'manual' ? 'bg-zinc-800 text-[var(--neon-blue)] shadow-lg' : 'text-zinc-500 hover:text-zinc-300'
+            }`}
           >
-            <LogIn size={20} /> Admin Login
+            Tester Access
           </button>
-        ) : (
-          <p className="text-[var(--neon-red)] text-xs font-bold">Logged in as {user.email}. This account is not authorized.</p>
-        )}
+          <button 
+            onClick={() => setLoginTab('google')}
+            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              loginTab === 'google' ? 'bg-zinc-800 text-[var(--neon-blue)] shadow-lg' : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            Official Login
+          </button>
+        </div>
+
+        <div className="min-h-[240px] flex flex-col justify-center">
+          {loginTab === 'manual' ? (
+            <div className="animate-in fade-in slide-in-from-left-4 duration-300">
+              <form onSubmit={dummyLogin} className="space-y-4">
+                <p className="text-xs text-zinc-400 leading-relaxed mb-2">
+                  Enter the provided tester credentials to bypass Google authentication.
+                </p>
+                <div className="space-y-1 text-left">
+                  <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Tester ID</label>
+                  <input 
+                    type="text" 
+                    placeholder="admin_test"
+                    className="w-full bg-black/60 border border-zinc-800 rounded-xl px-4 py-4 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--neon-blue)] transition-all"
+                    value={dummyCredentials.username}
+                    onChange={(e) => setDummyCredentials(prev => ({ ...prev, username: e.target.value }))}
+                    disabled={isLoggingIn}
+                  />
+                </div>
+                <div className="space-y-1 text-left">
+                  <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Access Key</label>
+                  <input 
+                    type="password" 
+                    placeholder="••••••••"
+                    className="w-full bg-black/60 border border-zinc-800 rounded-xl px-4 py-4 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--neon-blue)] transition-all"
+                    value={dummyCredentials.password}
+                    onChange={(e) => setDummyCredentials(prev => ({ ...prev, password: e.target.value }))}
+                    disabled={isLoggingIn}
+                  />
+                </div>
+                <button 
+                  type="button"
+                  onClick={(e) => {
+                    if (typeof window !== 'undefined') window.alert("Attempting to verify: " + dummyCredentials.username);
+                    dummyLogin(e);
+                  }}
+                  disabled={isLoggingIn}
+                  className="w-full bg-zinc-800 text-[var(--neon-blue)] py-4 rounded-2xl font-black uppercase tracking-widest text-xs border border-[var(--neon-blue)]/30 hover:bg-[var(--neon-blue)]/10 transition-all mt-2 flex items-center justify-center gap-2 cursor-pointer pointer-events-auto"
+                >
+                  {isLoggingIn ? (
+                    <>
+                      <RefreshCw size={16} className="animate-spin" /> Verifying...
+                    </>
+                  ) : (
+                    "Verify Tester Access"
+                  )}
+                </button>
+                <div className="pt-4 text-[8px] text-zinc-600 uppercase tracking-widest font-bold">
+                  Status: {dummyCredentials.username.length > 0 ? "ID Entered" : "Waiting for ID"} | {dummyCredentials.password.length > 0 ? "Key Entered" : "Waiting for Key"}
+                </div>
+              </form>
+            </div>
+          ) : (
+            <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+              {!user ? (
+                <div className="space-y-6">
+                  <p className="text-xs text-zinc-400 leading-relaxed px-4">
+                    Use your institutional Google account to access the administrative dashboard.
+                  </p>
+                  <button 
+                    onClick={login}
+                    className="w-full bg-[var(--neon-blue)] text-black py-5 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 transition-all shadow-[0_0_20px_rgba(0,242,255,0.2)]"
+                  >
+                    <LogIn size={20} /> Sign in with Google
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-2xl">
+                    <p className="text-[var(--neon-red)] text-[10px] font-black uppercase tracking-widest mb-2">Unauthorized Account</p>
+                    <p className="text-zinc-300 text-xs font-medium break-all">{user.email}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button 
+                      onClick={switchAccount}
+                      className="bg-[var(--neon-blue)] text-black py-4 rounded-xl font-black uppercase tracking-widest text-[10px] hover:scale-[1.02] transition-all"
+                    >
+                      Switch
+                    </button>
+                    <button 
+                      onClick={logout}
+                      className="bg-zinc-800 text-zinc-400 py-4 rounded-xl font-black uppercase tracking-widest text-[10px] hover:text-white transition-all"
+                    >
+                      Sign Out
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-12 pt-8 border-t border-zinc-900">
+          <p className="text-[9px] text-zinc-600 uppercase font-bold tracking-[0.2em]">
+            NEU Library Monitoring System v2.0
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -213,10 +453,10 @@ export default function AdminDashboard() {
           }
         }
       }
-      alert(`Migration Complete! Updated ${count} records.`);
+      setNotification({ message: `Migration Complete! Updated ${count} records.`, type: 'success' });
       fetchData();
     } catch (err: any) {
-      alert("Migration Failed: " + err.message);
+      setNotification({ message: "Migration Failed: " + err.message, type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -224,31 +464,25 @@ export default function AdminDashboard() {
 
   const seedData = async () => {
     if (!isAdmin) return;
-    const visitors = [
-      { name: "Juan Dela Cruz", email: "juan.delacruz@neu.edu.ph", rfid_tag: "24-00001-001", college: "College of Computer Studies", role: "student", is_blocked: false, created_at: Timestamp.now() },
-      { name: "Maria Clara", email: "maria.clara@neu.edu.ph", rfid_tag: "24-00002-001", college: "College of Arts and Sciences", role: "faculty", is_blocked: false, created_at: Timestamp.now() },
-      { name: "Jose Rizal", email: "jose.rizal@neu.edu.ph", rfid_tag: "24-00003-001", college: "College of Education", role: "student", is_blocked: false, created_at: Timestamp.now() },
-      { name: "Andres Bonifacio", email: "andres.b@neu.edu.ph", rfid_tag: "24-00004-001", college: "College of Law", role: "student", is_blocked: false, created_at: Timestamp.now() }
-    ];
-
+    
+    setLoading(true);
     try {
-      for (const v of visitors) {
-        const q = query(collection(db, 'visitors'), where('email', '==', v.email));
-        const snap = await getDocs(q);
-        if (snap.empty) {
-          await addDoc(collection(db, 'visitors'), v);
-        } else {
-          // Update existing record to new format
-          const { updateDoc, doc: firestoreDoc } = await import('firebase/firestore');
-          await updateDoc(firestoreDoc(db, 'visitors', snap.docs[0].id), {
-            rfid_tag: v.rfid_tag
-          });
-        }
-      }
-      alert("Seed Data Synchronized Successfully!");
+      // Reset logic: Clear logs and visitors
+      const logsSnap = await getDocs(collection(db, 'logs'));
+      const visitorsSnap = await getDocs(collection(db, 'visitors'));
+      
+      const { deleteDoc, doc: firestoreDoc } = await import('firebase/firestore');
+      
+      for (const d of logsSnap.docs) await deleteDoc(firestoreDoc(db, 'logs', d.id));
+      for (const d of visitorsSnap.docs) await deleteDoc(firestoreDoc(db, 'visitors', d.id));
+
+      setNotification({ message: "System Reset Successfully!", type: 'success' });
+      setShowResetConfirm(false);
       fetchData();
     } catch (err: any) {
-      alert("Seed Failed: " + err.message);
+      setNotification({ message: "Reset Failed: " + err.message, type: 'error' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -258,27 +492,39 @@ export default function AdminDashboard() {
     setRegistering(true);
 
     try {
-      // Check if email or RFID already exists
-      const emailQ = query(collection(db, 'visitors'), where('email', '==', newStudent.email));
-      const rfidQ = query(collection(db, 'visitors'), where('rfid_tag', '==', newStudent.rfid_tag));
+      const studentId = await generateStudentId();
+      const fullName = `${newStudent.firstName} ${newStudent.middleName ? newStudent.middleName + ' ' : ''}${newStudent.lastName}`.trim();
       
-      const [emailSnap, rfidSnap] = await Promise.all([getDocs(emailQ), getDocs(rfidQ)]);
-
-      if (!emailSnap.empty) throw new Error("Email already registered");
-      if (!rfidSnap.empty) throw new Error("RFID/Student Number already registered");
-
-      await addDoc(collection(db, 'visitors'), {
-        ...newStudent,
+      const studentData = {
+        name: fullName,
+        email: newStudent.email,
+        rfid_tag: studentId,
+        college: newStudent.college,
         role: 'student',
         is_blocked: false,
         created_at: Timestamp.now()
-      });
+      };
 
-      alert("Student Registered Successfully!");
-      setShowRegisterModal(false);
-      setNewStudent({ name: '', email: '', rfid_tag: '', college: COLLEGES[0] });
+      setRegistrationPreview(studentData);
+      setRegistering(false);
     } catch (err: any) {
-      alert("Registration Failed: " + err.message);
+      setNotification({ message: "Generation Failed: " + err.message, type: 'error' });
+      setRegistering(false);
+    }
+  };
+
+  const confirmRegistration = async () => {
+    if (!registrationPreview) return;
+    setRegistering(true);
+    try {
+      await addDoc(collection(db, 'visitors'), registrationPreview);
+      setNotification({ message: "Student Saved to Database!", type: 'success' });
+      setShowRegisterModal(false);
+      setRegistrationPreview(null);
+      setNewStudent({ firstName: '', middleName: '', lastName: '', email: '', rfid_tag: '', college: COLLEGES[0] });
+      fetchData();
+    } catch (err: any) {
+      setNotification({ message: "Save Failed: " + err.message, type: 'error' });
     } finally {
       setRegistering(false);
     }
@@ -330,7 +576,8 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="p-4 md:p-8 min-h-screen text-[var(--text-primary)]">
+    <div className="p-4 md:p-8 min-h-screen text-[var(--text-primary)] relative">
+      <div className="atmosphere" />
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-black glow-text">ADMIN COMMAND CENTER</h1>
@@ -354,16 +601,10 @@ export default function AdminDashboard() {
             <Users size={16} /> REGISTER STUDENT
           </button>
           <button 
-            onClick={migrateData}
+            onClick={() => setShowResetConfirm(true)}
             className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-[var(--neon-red)] font-bold text-xs hover:bg-[var(--neon-red)] hover:text-black transition-all"
           >
-            <Shield size={16} /> MIGRATE IDS
-          </button>
-          <button 
-            onClick={seedData}
-            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-[var(--neon-green)] font-bold text-xs hover:bg-[var(--neon-green)] hover:text-black transition-all"
-          >
-            <Activity size={16} /> SEED DATA
+            <RefreshCw size={16} /> RESET SYSTEM
           </button>
           <button 
             onClick={generatePDF}
@@ -482,79 +723,154 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Registration Modal */}
+      {/* Reset Confirmation Modal */}
+      {notification && (
+        <div className={`fixed top-12 left-1/2 -translate-x-1/2 z-[500] px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-2xl animate-in slide-in-from-top-4 duration-300 ${
+          notification.type === 'success' ? 'bg-[var(--neon-green)] text-black' : 'bg-[var(--neon-red)] text-white'
+        }`}>
+          {notification.message}
+        </div>
+      )}
+      {showResetConfirm && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+          <div className="stat-card p-10 rounded-[3rem] w-full max-w-md text-center border-[var(--neon-red)] shadow-[0_0_30px_rgba(255,49,49,0.2)]">
+            <ShieldAlert size={64} className="text-[var(--neon-red)] mx-auto mb-6" />
+            <h2 className="text-2xl font-black mb-4 glow-text text-[var(--neon-red)] uppercase tracking-widest">System Reset</h2>
+            <p className="text-sm text-zinc-400 font-bold mb-8 uppercase tracking-widest leading-relaxed">
+              WARNING: This will permanently delete ALL visitor logs and registered students. This action cannot be undone.
+            </p>
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setShowResetConfirm(false)}
+                className="flex-1 bg-zinc-800 text-zinc-400 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:text-white transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={seedData}
+                className="flex-1 bg-[var(--neon-red)] text-black py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-[0_0_15px_rgba(255,49,49,0.3)] hover:scale-[1.02] transition-transform"
+              >
+                Confirm Reset
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification Toast removed from here and moved to top level */}
       {showRegisterModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="stat-card p-8 rounded-[2.5rem] w-full max-w-md animate-in zoom-in-95 duration-200">
-            <h2 className="text-2xl font-black mb-6 glow-text uppercase tracking-widest">Register New Student</h2>
-            <form onSubmit={handleRegister} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Full Name</label>
-                <input 
-                  required
-                  type="text" 
-                  placeholder="JUAN DELA CRUZ"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)]"
-                  value={newStudent.name}
-                  onChange={(e) => setNewStudent(prev => ({ ...prev, name: e.target.value }))}
-                />
+            <h2 className="text-2xl font-black mb-6 glow-text uppercase tracking-widest">
+              {registrationPreview ? "Confirm Details" : "Register New Student"}
+            </h2>
+            
+            {!registrationPreview ? (
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">First Name</label>
+                    <input 
+                      required
+                      type="text" 
+                      placeholder="JUAN"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)]"
+                      value={newStudent.firstName}
+                      onChange={(e) => setNewStudent(prev => ({ ...prev, firstName: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Middle Name</label>
+                    <input 
+                      type="text" 
+                      placeholder="PROTASIO"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)]"
+                      value={newStudent.middleName}
+                      onChange={(e) => setNewStudent(prev => ({ ...prev, middleName: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Last Name</label>
+                  <input 
+                    required
+                    type="text" 
+                    placeholder="DELA CRUZ"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)]"
+                    value={newStudent.lastName}
+                    onChange={(e) => setNewStudent(prev => ({ ...prev, lastName: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">College / Office</label>
+                  <select 
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)]"
+                    value={newStudent.college}
+                    onChange={(e) => setNewStudent(prev => ({ ...prev, college: e.target.value }))}
+                  >
+                    {COLLEGES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                
+                <div className="pt-4 flex gap-4">
+                  <button 
+                    type="button" 
+                    onClick={() => setShowRegisterModal(false)}
+                    className="flex-1 text-zinc-500 text-[10px] uppercase font-bold tracking-widest hover:text-white transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={registering}
+                    className="flex-[2] bg-[var(--neon-blue)] text-black font-black py-3 rounded-xl uppercase tracking-widest text-xs shadow-[0_0_15px_rgba(0,242,255,0.3)] hover:scale-[1.02] transition-transform disabled:opacity-50"
+                  >
+                    {registering ? "GENERATING..." : "GENERATE PROFILE"}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="space-y-6">
+                <div className="space-y-4 bg-black/40 p-6 rounded-2xl border border-zinc-800">
+                  <div className="flex flex-col border-b border-zinc-800 pb-3">
+                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Full Name</span>
+                    <span className="text-sm font-black text-[var(--text-primary)] uppercase">{registrationPreview.name}</span>
+                  </div>
+                  <div className="flex flex-col border-b border-zinc-800 pb-3">
+                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Institutional Email</span>
+                    <span className="text-sm font-bold text-[var(--neon-blue)] lowercase">{registrationPreview.email}</span>
+                  </div>
+                  <div className="flex flex-col border-b border-zinc-800 pb-3">
+                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Student ID / RFID</span>
+                    <span className="text-sm font-black text-[var(--neon-green)] tracking-widest">{registrationPreview.rfid_tag}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">College / Office</span>
+                    <span className="text-sm font-bold text-[var(--text-primary)] uppercase leading-tight">{registrationPreview.college}</span>
+                  </div>
+                </div>
+                
+                <p className="text-[10px] text-center text-zinc-400 font-bold uppercase tracking-[0.2em] leading-relaxed">
+                  Confirm the details above to seed this student into the database.
+                </p>
+
+                <div className="flex gap-4">
+                  <button 
+                    onClick={() => setRegistrationPreview(null)}
+                    className="flex-1 text-zinc-500 text-[10px] uppercase font-bold tracking-widest hover:text-white transition-colors"
+                  >
+                    Back
+                  </button>
+                  <button 
+                    onClick={confirmRegistration}
+                    disabled={registering}
+                    className="flex-[2] bg-[var(--neon-green)] text-black font-black py-3 rounded-xl uppercase tracking-widest text-xs shadow-[0_0_15px_rgba(57,255,20,0.3)] hover:scale-[1.02] transition-transform disabled:opacity-50"
+                  >
+                    {registering ? "SAVING..." : "SEED TO DATABASE"}
+                  </button>
+                </div>
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Institutional Email</label>
-                <input 
-                  required
-                  type="email" 
-                  placeholder="juan.delacruz@neu.edu.ph"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)]"
-                  value={newStudent.email}
-                  onChange={(e) => setNewStudent(prev => ({ ...prev, email: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">RFID / Student Number</label>
-                <input 
-                  required
-                  type="text" 
-                  placeholder="00-00000-000"
-                  maxLength={12}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)]"
-                  value={newStudent.rfid_tag}
-                  onChange={(e) => {
-                    let val = e.target.value.replace(/\D/g, '');
-                    if (val.length > 2) val = val.slice(0, 2) + '-' + val.slice(2);
-                    if (val.length > 8) val = val.slice(0, 8) + '-' + val.slice(8);
-                    setNewStudent(prev => ({ ...prev, rfid_tag: val.slice(0, 12) }));
-                  }}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">College / Office</label>
-                <select 
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)]"
-                  value={newStudent.college}
-                  onChange={(e) => setNewStudent(prev => ({ ...prev, college: e.target.value }))}
-                >
-                  {COLLEGES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              
-              <div className="pt-4 flex gap-4">
-                <button 
-                  type="button" 
-                  onClick={() => setShowRegisterModal(false)}
-                  className="flex-1 text-zinc-500 text-[10px] uppercase font-bold tracking-widest hover:text-white transition-colors"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={registering}
-                  className="flex-[2] bg-[var(--neon-blue)] text-black font-black py-3 rounded-xl uppercase tracking-widest text-xs shadow-[0_0_15px_rgba(0,242,255,0.3)] hover:scale-[1.02] transition-transform disabled:opacity-50"
-                >
-                  {registering ? "REGISTERING..." : "CONFIRM REGISTRATION"}
-                </button>
-              </div>
-            </form>
+            )}
           </div>
         </div>
       )}

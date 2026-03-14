@@ -38,7 +38,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'tester'] ||
          (request.auth.token.email == "alexis.castro@neu.edu.ph" && request.auth.token.email_verified == true));
     }
 
@@ -62,7 +62,12 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow write: if isAdmin();
+      // Allow anonymous testers to create their own session document
+      allow create: if isAuthenticated() && 
+                    request.auth.token.firebase.sign_in_provider == 'anonymous' &&
+                    request.resource.data.role == 'tester' &&
+                    request.resource.data.secret == 'neu_tester_2026';
+      allow update, delete: if isAdmin();
     }
 
     match /visitors/{visitorId} {
