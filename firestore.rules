@@ -1,0 +1,83 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: visitors
+// Document ID: auto-generated
+// Fields:
+//   - name: string (required)
+//   - email: string (required, email format)
+//   - rfid_tag: string (required)
+//   - college: string (optional)
+//   - role: string (optional, enum: student, faculty, staff)
+//   - is_blocked: boolean (optional)
+//   - created_at: timestamp (optional)
+//
+// Collection: logs
+// Document ID: auto-generated
+// Fields:
+//   - visitor_id: string (required)
+//   - visitor_name: string (required)
+//   - visitor_college: string (required)
+//   - purpose: string (required)
+//   - timestamp: timestamp (required)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "alexis.castro@neu.edu.ph" && request.auth.token.email_verified == true));
+    }
+
+    function isValidVisitor(data) {
+      return data.keys().hasAll(['name', 'email', 'rfid_tag']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
+             data.rfid_tag is string && data.rfid_tag.size() > 0;
+    }
+
+    function isValidLog(data) {
+      return data.keys().hasAll(['visitor_id', 'purpose', 'timestamp', 'visitor_name', 'visitor_college']) &&
+             data.visitor_id is string &&
+             data.purpose is string && data.purpose.size() > 0 &&
+             data.timestamp is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /visitors/{visitorId} {
+      // Allow authenticated users to read visitors (for identification in the terminal)
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() && isValidVisitor(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /logs/{logId} {
+      // Only admins can see logs
+      allow read: if isAdmin();
+      // Any authenticated user (terminal) can create a log
+      allow create: if isAuthenticated() && isValidLog(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+  }
+}

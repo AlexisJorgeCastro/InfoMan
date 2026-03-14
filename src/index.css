@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+@theme {
+  --color-neon-blue: var(--neon-blue);
+  --color-neon-green: var(--neon-green);
+  --color-neon-red: var(--neon-red);
+  --font-orbitron: "Orbitron", sans-serif;
+}
+
+:root {
+  --neon-blue: #00f2ff;
+  --neon-green: #39ff14;
+  --neon-red: #ff3131;
+  --bg-primary: #050505;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --input-bg: #09090b;
+  --card-bg: rgba(15, 23, 42, 0.6);
+  --card-border: rgba(0, 242, 255, 0.2);
+  --tag-bg: rgba(30, 41, 59, 0.5);
+  font-family: "Orbitron", sans-serif;
+}
+
+:root.light {
+  --neon-blue: #0088cc;
+  --neon-green: #228b22;
+  --neon-red: #cc0000;
+  --bg-primary: #f8fafc;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --input-bg: #ffffff;
+  --card-bg: rgba(255, 255, 255, 0.8);
+  --card-border: rgba(0, 136, 204, 0.2);
+  --tag-bg: rgba(0, 136, 204, 0.1);
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: "Orbitron", sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Futuristic Header Styles */
+h1, h2, h3, .glow-text {
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px rgba(0, 242, 255, 0.3);
+  font-weight: 700;
+}
+
+.light h1, .light h2, .light h3, .light .glow-text {
+  text-shadow: none;
+}
+
+/* RFID Scan Ring Animation */
+.pulse-ring {
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  border: 2px solid var(--neon-blue);
+  box-shadow: 0 0 15px var(--neon-blue), inset 0 0 10px var(--neon-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  animation: pulse-ring 2s infinite ease-in-out;
+}
+
+@keyframes pulse-ring {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.08); opacity: 0.7; box-shadow: 0 0 25px var(--neon-blue); }
+}
+
+/* The "Glass" effect for Admin Cards */
+.stat-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  backdrop-filter: blur(8px);
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  border-color: var(--neon-blue);
+  box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
+}
+
+/* Input placeholder styling */
+input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
+.light input::placeholder {
+  color: #64748b;
+  opacity: 1;
+}

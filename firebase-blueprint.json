@@ -1,0 +1,42 @@
+{
+  "entities": {
+    "Visitor": {
+      "title": "Visitor",
+      "description": "A student or faculty member who visits the library.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the visitor." },
+        "email": { "type": "string", "format": "email", "description": "University email address." },
+        "rfid_tag": { "type": "string", "description": "RFID tag ID or Student Number." },
+        "college": { "type": "string", "description": "College or department." },
+        "role": { "type": "string", "enum": ["student", "faculty", "staff"], "description": "Role in the university." },
+        "is_blocked": { "type": "boolean", "description": "Whether the visitor is blocked from entry." },
+        "created_at": { "type": "string", "format": "date-time", "description": "When the visitor was registered." }
+      },
+      "required": ["name", "email", "rfid_tag"]
+    },
+    "Log": {
+      "title": "Log",
+      "description": "An entry log for a library visit.",
+      "type": "object",
+      "properties": {
+        "visitor_id": { "type": "string", "description": "Reference to the Visitor document ID." },
+        "visitor_name": { "type": "string", "description": "Denormalized visitor name for easier display." },
+        "visitor_college": { "type": "string", "description": "Denormalized visitor college." },
+        "purpose": { "type": "string", "description": "Purpose of the visit (e.g., Study, Research)." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the log was created." }
+      },
+      "required": ["visitor_id", "purpose", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/visitors/{visitorId}": {
+      "schema": "Visitor",
+      "description": "Collection of registered visitors."
+    },
+    "/logs/{logId}": {
+      "schema": "Log",
+      "description": "Collection of visit logs."
+    }
+  }
+}
