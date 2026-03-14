@@ -178,13 +178,57 @@ export default function AdminDashboard() {
     </div>
   );
 
+  const migrateData = async () => {
+    if (!isAdmin) return;
+    setLoading(true);
+    try {
+      const q = collection(db, 'visitors');
+      const snap = await getDocs(q);
+      let count = 0;
+      
+      for (const vDoc of snap.docs) {
+        const data = vDoc.data();
+        let tag = data.rfid_tag || "";
+        
+        // Only migrate if it doesn't already match the format 00-00000-000
+        const formatRegex = /^\d{2}-\d{5}-\d{3}$/;
+        if (!formatRegex.test(tag)) {
+          // Attempt to clean and format
+          let digits = tag.replace(/\D/g, '');
+          if (digits.length >= 5) {
+            // Pad or truncate to 10 digits for a reasonable guess
+            // e.g. 202400001 -> 2400001 -> 24-00001-000
+            if (digits.startsWith('20')) digits = digits.slice(2); // Remove '20' from 2024
+            
+            // Ensure we have at least 10 digits by padding with zeros
+            digits = digits.padEnd(10, '0');
+            
+            const newTag = `${digits.slice(0, 2)}-${digits.slice(2, 7)}-${digits.slice(7, 10)}`;
+            
+            const { updateDoc, doc: firestoreDoc } = await import('firebase/firestore');
+            await updateDoc(firestoreDoc(db, 'visitors', vDoc.id), {
+              rfid_tag: newTag
+            });
+            count++;
+          }
+        }
+      }
+      alert(`Migration Complete! Updated ${count} records.`);
+      fetchData();
+    } catch (err: any) {
+      alert("Migration Failed: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const seedData = async () => {
     if (!isAdmin) return;
     const visitors = [
-      { name: "Juan Dela Cruz", email: "juan.delacruz@neu.edu.ph", rfid_tag: "RFID12345", college: "College of Computer Studies", role: "student", is_blocked: false, created_at: Timestamp.now() },
-      { name: "Maria Clara", email: "maria.clara@neu.edu.ph", rfid_tag: "RFID67890", college: "College of Arts and Sciences", role: "faculty", is_blocked: false, created_at: Timestamp.now() },
-      { name: "Jose Rizal", email: "jose.rizal@neu.edu.ph", rfid_tag: "2024-00001", college: "College of Education", role: "student", is_blocked: false, created_at: Timestamp.now() },
-      { name: "Andres Bonifacio", email: "andres.b@neu.edu.ph", rfid_tag: "2024-00002", college: "College of Law", role: "student", is_blocked: false, created_at: Timestamp.now() }
+      { name: "Juan Dela Cruz", email: "juan.delacruz@neu.edu.ph", rfid_tag: "24-00001-001", college: "College of Computer Studies", role: "student", is_blocked: false, created_at: Timestamp.now() },
+      { name: "Maria Clara", email: "maria.clara@neu.edu.ph", rfid_tag: "24-00002-001", college: "College of Arts and Sciences", role: "faculty", is_blocked: false, created_at: Timestamp.now() },
+      { name: "Jose Rizal", email: "jose.rizal@neu.edu.ph", rfid_tag: "24-00003-001", college: "College of Education", role: "student", is_blocked: false, created_at: Timestamp.now() },
+      { name: "Andres Bonifacio", email: "andres.b@neu.edu.ph", rfid_tag: "24-00004-001", college: "College of Law", role: "student", is_blocked: false, created_at: Timestamp.now() }
     ];
 
     try {
@@ -193,9 +237,15 @@ export default function AdminDashboard() {
         const snap = await getDocs(q);
         if (snap.empty) {
           await addDoc(collection(db, 'visitors'), v);
+        } else {
+          // Update existing record to new format
+          const { updateDoc, doc: firestoreDoc } = await import('firebase/firestore');
+          await updateDoc(firestoreDoc(db, 'visitors', snap.docs[0].id), {
+            rfid_tag: v.rfid_tag
+          });
         }
       }
-      alert("Seed Data Added Successfully!");
+      alert("Seed Data Synchronized Successfully!");
       fetchData();
     } catch (err: any) {
       alert("Seed Failed: " + err.message);
@@ -302,6 +352,12 @@ export default function AdminDashboard() {
             className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-[var(--neon-blue)] font-bold text-xs hover:bg-[var(--neon-blue)] hover:text-black transition-all"
           >
             <Users size={16} /> REGISTER STUDENT
+          </button>
+          <button 
+            onClick={migrateData}
+            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-[var(--neon-red)] font-bold text-xs hover:bg-[var(--neon-red)] hover:text-black transition-all"
+          >
+            <Shield size={16} /> MIGRATE IDS
           </button>
           <button 
             onClick={seedData}
@@ -459,10 +515,16 @@ export default function AdminDashboard() {
                 <input 
                   required
                   type="text" 
-                  placeholder="2024-00001"
+                  placeholder="00-00000-000"
+                  maxLength={12}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)]"
                   value={newStudent.rfid_tag}
-                  onChange={(e) => setNewStudent(prev => ({ ...prev, rfid_tag: e.target.value }))}
+                  onChange={(e) => {
+                    let val = e.target.value.replace(/\D/g, '');
+                    if (val.length > 2) val = val.slice(0, 2) + '-' + val.slice(2);
+                    if (val.length > 8) val = val.slice(0, 8) + '-' + val.slice(8);
+                    setNewStudent(prev => ({ ...prev, rfid_tag: val.slice(0, 12) }));
+                  }}
                 />
               </div>
               <div className="space-y-1">

@@ -186,8 +186,15 @@ export default function VisitorTerminal() {
                       <input 
                         type="text" 
                         id="manualRfid"
-                        placeholder="ENTER ID NUMBER"
+                        placeholder="00-00000-000"
+                        maxLength={12}
                         className="w-full bg-[var(--input-bg)] border border-zinc-800/30 rounded-xl px-4 py-3 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-center tracking-widest text-[var(--text-primary)]"
+                        onChange={(e) => {
+                          let val = e.target.value.replace(/\D/g, '');
+                          if (val.length > 2) val = val.slice(0, 2) + '-' + val.slice(2);
+                          if (val.length > 8) val = val.slice(0, 8) + '-' + val.slice(8);
+                          e.target.value = val.slice(0, 12);
+                        }}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             identifyVisitor({ rfid_tag: (e.target as HTMLInputElement).value });
