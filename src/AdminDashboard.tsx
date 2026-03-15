@@ -255,7 +255,7 @@ export default function AdminDashboard() {
       const allStudents = vSnap.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      }));
+      })) as any[];
       setStudents(allStudents);
 
       // Map current block status to logs

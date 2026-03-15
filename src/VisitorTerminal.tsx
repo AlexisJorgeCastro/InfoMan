@@ -77,7 +77,12 @@ export default function VisitorTerminal() {
     try {
       let q;
       if (data.rfid_tag) {
-        q = query(collection(db, 'visitors'), where('rfid_tag', '==', data.rfid_tag));
+        // Ensure ID format consistency (XX-XXXXX-XXX)
+        let cleanTag = data.rfid_tag.replace(/\D/g, '');
+        if (cleanTag.length === 10) {
+          cleanTag = cleanTag.slice(0, 2) + '-' + cleanTag.slice(2, 7) + '-' + cleanTag.slice(7);
+        }
+        q = query(collection(db, 'visitors'), where('rfid_tag', '==', cleanTag));
       } else {
         q = query(collection(db, 'visitors'), where('email', '==', data.email));
       }
@@ -167,7 +172,7 @@ export default function VisitorTerminal() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
                 {/* RFID / Student Number Input */}
                 <div className="stat-card p-8 rounded-3xl flex flex-col items-center gap-6">
-                  <div className="pulse-ring w-24 h-24" onClick={() => identifyVisitor({ rfid_tag: 'RFID12345' })}>
+                  <div className="pulse-ring w-24 h-24" onClick={() => identifyVisitor({ rfid_tag: '26-00001-000' })}>
                     <CreditCard size={32} className="text-[var(--neon-blue)]" />
                   </div>
                   <div className="w-full space-y-4">
@@ -277,26 +282,28 @@ export default function VisitorTerminal() {
               <CheckCircle2 size={80} className="text-[var(--neon-green)] mx-auto mb-6 drop-shadow-[0_0_15px_var(--neon-green)]" />
               <h1 className="text-4xl font-black mb-2 glow-text text-[var(--neon-green)]">Welcome to NEU Library!</h1>
               
-              <div className="stat-card p-8 rounded-3xl mt-8 max-w-sm mx-auto text-left space-y-4">
-                <div className="flex justify-between border-b border-zinc-800/50 pb-2">
-                  <span className="text-[10px] text-zinc-500 uppercase font-bold">Name</span>
-                  <span className="text-xs font-bold uppercase">{visitor.name}</span>
+              <div className="stat-card p-8 rounded-3xl mt-8 max-w-sm mx-auto text-left space-y-4 border-zinc-800/50">
+                <div className="flex justify-between items-center border-b border-zinc-800/30 pb-3">
+                  <span className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">Name</span>
+                  <span className="text-xs font-bold uppercase tracking-tight">{visitor.name}</span>
                 </div>
-                <div className="flex justify-between border-b border-zinc-800/50 pb-2">
-                  <span className="text-[10px] text-zinc-500 uppercase font-bold">College</span>
-                  <span className="text-xs font-bold uppercase">{visitor.college}</span>
+                <div className="flex justify-between items-center border-b border-zinc-800/30 pb-3">
+                  <span className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">College</span>
+                  <span className="text-xs font-mono font-medium text-[var(--neon-blue)] uppercase text-right max-w-[180px] leading-tight">
+                    {visitor.college}
+                  </span>
                 </div>
-                <div className="flex justify-between border-b border-zinc-800/50 pb-2">
-                  <span className="text-[10px] text-zinc-500 uppercase font-bold">Purpose</span>
+                <div className="flex justify-between items-center border-b border-zinc-800/30 pb-3">
+                  <span className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">Purpose</span>
                   <span className="text-xs font-bold uppercase text-[var(--neon-blue)]">{visitor.purpose}</span>
                 </div>
-                <div className="flex justify-between border-b border-zinc-800/50 pb-2">
-                  <span className="text-[10px] text-zinc-500 uppercase font-bold">Date</span>
-                  <span className="text-xs font-bold uppercase">{visitor.date}</span>
+                <div className="flex justify-between items-center border-b border-zinc-800/30 pb-3">
+                  <span className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">Date</span>
+                  <span className="text-xs font-mono font-medium">{visitor.date}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-[10px] text-zinc-500 uppercase font-bold">Time</span>
-                  <span className="text-xs font-bold uppercase">{visitor.time}</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">Time</span>
+                  <span className="text-xs font-mono font-medium">{visitor.time}</span>
                 </div>
               </div>
               
