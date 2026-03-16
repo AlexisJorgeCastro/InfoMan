@@ -9,11 +9,10 @@ import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
 function App() {
-  const [view, setView] = useState('terminal');
+  const [view, setView] = useState<'terminal' | 'admin'>('terminal');
   const [theme, setTheme] = useState('dark');
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [activeRole, setActiveRole] = useState<'user' | 'admin'>('user');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
@@ -32,7 +31,7 @@ function App() {
         }
       } else {
         setIsAdmin(false);
-        setActiveRole('user');
+        setView('terminal');
       }
     });
     return () => unsubscribe();
@@ -66,17 +65,17 @@ function App() {
         {isAdmin && (
           <div className="flex bg-zinc-800 rounded-full p-1 shadow-lg border border-zinc-700">
             <button 
-              onClick={() => setActiveRole('user')}
+              onClick={() => setView('terminal')}
               className={`px-4 py-2 rounded-full text-[9px] font-black uppercase transition-all ${
-                activeRole === 'user' ? 'bg-[#00f2ff] text-black shadow-[0_0_10px_#00f2ff]' : 'text-zinc-500 hover:text-zinc-300'
+                view === 'terminal' ? 'bg-[#00f2ff] text-black shadow-[0_0_10px_#00f2ff]' : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
               User Mode
             </button>
             <button 
-              onClick={() => setActiveRole('admin')}
+              onClick={() => setView('admin')}
               className={`px-4 py-2 rounded-full text-[9px] font-black uppercase transition-all ${
-                activeRole === 'admin' ? 'bg-[#00f2ff] text-black shadow-[0_0_10px_#00f2ff]' : 'text-zinc-500 hover:text-zinc-300'
+                view === 'admin' ? 'bg-[#00f2ff] text-black shadow-[0_0_10px_#00f2ff]' : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
               Admin Mode
@@ -98,7 +97,7 @@ function App() {
 
       {/* View Logic */}
       <main>
-        {(activeRole === 'admin' || view === 'admin') ? <AdminDashboard /> : <VisitorTerminal />}
+        {view === 'admin' ? <AdminDashboard /> : <VisitorTerminal />}
       </main>
     </div>
   );
