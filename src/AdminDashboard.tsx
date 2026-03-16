@@ -95,7 +95,7 @@ export default function AdminDashboard() {
       setUser(u);
       if (u) {
         // Check if admin
-        const adminEmails = ["alexis.castro@neu.edu.ph", "jcesperanza@neu.edu.ph"];
+        const adminEmails = ["alexis.castro@neu.edu.ph", "jcesperanza@neu.edu.ph", "ajcken319@gmail.com", "chynna.cardona@neu.edu.ph"];
         if (adminEmails.includes(u.email)) {
           setIsAdmin(true);
         } else if (u.isAnonymous) {
@@ -200,7 +200,6 @@ export default function AdminDashboard() {
           msg = "Network error. Please check your internet connection and authorized domains.";
         }
         setNotification({ message: "Login Error: " + msg, type: 'error' });
-        if (typeof window !== 'undefined') window.alert("Login Error: " + msg);
       } finally {
         setIsLoggingIn(false);
         isAuthenticatingTester.current = false;
@@ -411,7 +410,6 @@ export default function AdminDashboard() {
                 <button 
                   type="button"
                   onClick={(e) => {
-                    if (typeof window !== 'undefined') window.alert("Attempting to verify: " + dummyCredentials.username);
                     dummyLogin(e);
                   }}
                   disabled={isLoggingIn}

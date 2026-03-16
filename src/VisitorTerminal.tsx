@@ -32,9 +32,21 @@ export default function VisitorTerminal() {
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
-      setLoading(false);
+      
+      // Auto-login anonymously if not authenticated
+      if (!u) {
+        try {
+          const { signInAnonymously } = await import('firebase/auth');
+          await signInAnonymously(auth);
+        } catch (err) {
+          console.error("Auto-login failed:", err);
+          setLoading(false);
+        }
+      } else {
+        setLoading(false);
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -132,22 +144,9 @@ export default function VisitorTerminal() {
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-[#050505]">
-      <div className="text-[var(--neon-blue)] font-black tracking-widest animate-pulse">SYSTEM INITIALIZING...</div>
-    </div>
-  );
-
-  if (!user) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#050505] p-4">
-      <div className="stat-card p-12 rounded-[3rem] text-center max-w-md w-full">
-        <CreditCard size={64} className="text-[var(--neon-blue)] mx-auto mb-8" />
-        <h1 className="text-3xl font-black mb-4 glow-text">TERMINAL LOCKED</h1>
-        <p className="text-[var(--text-secondary)] text-sm mb-8 uppercase tracking-widest">Authorized Personnel Only</p>
-        <button 
-          onClick={login}
-          className="w-full bg-[var(--neon-blue)] text-black py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:scale-105 transition-transform"
-        >
-          <LogIn size={20} /> Initialize Terminal
-        </button>
+      <div className="flex flex-col items-center gap-6">
+        <div className="w-16 h-16 border-4 border-[var(--neon-blue)]/20 border-t-[var(--neon-blue)] rounded-full animate-spin" />
+        <div className="text-[var(--neon-blue)] font-black tracking-[0.4em] animate-pulse text-xs">ESTABLISHING SECURE LINK...</div>
       </div>
     </div>
   );
@@ -325,6 +324,20 @@ export default function VisitorTerminal() {
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
+
+      {/* System Status / Login */}
+      <div className="fixed bottom-4 left-4 z-50 flex gap-2">
+        <button 
+          onClick={login}
+          className="p-3 rounded-full bg-zinc-800 text-zinc-400 hover:text-[#00f2ff] transition-all shadow-lg flex items-center gap-2 px-4"
+          title="System Login"
+        >
+          <LogIn size={16} />
+          <span className="text-[10px] font-bold uppercase tracking-widest">
+            {user ? (user.isAnonymous ? "Guest Mode" : "Librarian Mode") : "System Offline"}
+          </span>
+        </button>
       </div>
     </div>
   );

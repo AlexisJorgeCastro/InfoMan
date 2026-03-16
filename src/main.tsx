@@ -19,7 +19,7 @@ function App() {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
-        const adminEmails = ["alexis.castro@neu.edu.ph", "jcesperanza@neu.edu.ph"];
+        const adminEmails = ["alexis.castro@neu.edu.ph", "jcesperanza@neu.edu.ph", "ajcken319@gmail.com", "chynna.cardona@neu.edu.ph"];
         if (adminEmails.includes(u.email)) {
           setIsAdmin(true);
         } else {
@@ -98,7 +98,7 @@ function App() {
 
       {/* View Logic */}
       <main>
-        {activeRole === 'admin' ? <AdminDashboard /> : <VisitorTerminal />}
+        {(activeRole === 'admin' || view === 'admin') ? <AdminDashboard /> : <VisitorTerminal />}
       </main>
     </div>
   );

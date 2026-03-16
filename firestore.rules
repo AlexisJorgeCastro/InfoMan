@@ -39,7 +39,7 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() &&
         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'tester'] ||
-         (request.auth.token.email in ["alexis.castro@neu.edu.ph", "jcesperanza@neu.edu.ph"] && request.auth.token.email_verified == true));
+         (request.auth.token.email in ["alexis.castro@neu.edu.ph", "jcesperanza@neu.edu.ph", "ajcken319@gmail.com", "chynna.cardona@neu.edu.ph"] && request.auth.token.email_verified == true));
     }
 
     function isValidVisitor(data) {
@@ -78,8 +78,8 @@ service cloud.firestore {
     }
 
     match /logs/{logId} {
-      // Only admins can see logs
-      allow read: if isAdmin();
+      // Allow authenticated users to read logs (needed for the "Today's Visitors" count)
+      allow read: if isAuthenticated();
       // Any authenticated user (terminal) can create a log
       allow create: if isAuthenticated() && isValidLog(request.resource.data);
       allow update, delete: if isAdmin();
