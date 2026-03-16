@@ -44,6 +44,7 @@ export default function AdminDashboard() {
   const [stats, setStats] = React.useState<any>({ total: 0, liveCount: 0, byPurpose: [], byCollege: [], dailyStats: [] });
   const [period, setPeriod] = React.useState('today');
   const [dateRange, setDateRange] = React.useState({ start: '', end: '' });
+  const [filters, setFilters] = React.useState({ purpose: 'all', college: 'all', role: 'all' });
   const [user, setUser] = React.useState<any>(null);
   const [isAdmin, setIsAdmin] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
@@ -94,8 +95,8 @@ export default function AdminDashboard() {
       setUser(u);
       if (u) {
         // Check if admin
-        const adminEmail = "alexis.castro@neu.edu.ph";
-        if (u.email === adminEmail) {
+        const adminEmails = ["alexis.castro@neu.edu.ph", "jcesperanza@neu.edu.ph"];
+        if (adminEmails.includes(u.email)) {
           setIsAdmin(true);
         } else if (u.isAnonymous) {
           // If we are currently in the middle of dummyLogin, let it handle the state
@@ -286,6 +287,19 @@ export default function AdminDashboard() {
         filteredLogs = allLogs.filter(l => isWithinInterval(l.timestamp, { start, end }));
       }
 
+      // Apply additional filters
+      if (filters.purpose !== 'all') {
+        filteredLogs = filteredLogs.filter(l => l.purpose === filters.purpose);
+      }
+      if (filters.college !== 'all') {
+        filteredLogs = filteredLogs.filter(l => l.visitor_college === filters.college);
+      }
+      if (filters.role === 'employee') {
+        filteredLogs = filteredLogs.filter(l => l.visitor_role === 'faculty' || l.visitor_role === 'staff');
+      } else if (filters.role === 'student') {
+        filteredLogs = filteredLogs.filter(l => l.visitor_role === 'student');
+      }
+
       const purposeMap: any = {};
       const collegeMap: any = {};
       const dailyMap: any = {};
@@ -311,7 +325,7 @@ export default function AdminDashboard() {
     } catch (err) {
       console.error("Fetch Data Error:", err);
     }
-  }, [period, dateRange, isAdmin]);
+  }, [period, dateRange, isAdmin, filters]);
 
   React.useEffect(() => {
     if (!isAdmin) return;
@@ -676,30 +690,93 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* Filters Section */}
+      <div className="stat-card p-6 rounded-3xl mb-8 flex flex-wrap gap-6 items-center border-zinc-800/50">
+        <div className="flex items-center gap-3">
+          <Filter size={14} className="text-zinc-500" />
+          <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Filters:</span>
+        </div>
+        
+        <div className="flex flex-col gap-1">
+          <label className="text-[8px] font-black text-zinc-600 uppercase tracking-widest ml-1">Purpose</label>
+          <select 
+            value={filters.purpose}
+            onChange={(e) => setFilters(prev => ({ ...prev, purpose: e.target.value }))}
+            className="bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-[10px] font-bold focus:outline-none focus:ring-1 focus:ring-[var(--neon-blue)]"
+          >
+            <option value="all">ALL PURPOSES</option>
+            <option value="Reading books">READING BOOKS</option>
+            <option value="Research for thesis">RESEARCH FOR THESIS</option>
+            <option value="Use of computer">USE OF COMPUTER</option>
+            <option value="Doing assignments">DOING ASSIGNMENTS</option>
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-[8px] font-black text-zinc-600 uppercase tracking-widest ml-1">College</label>
+          <select 
+            value={filters.college}
+            onChange={(e) => setFilters(prev => ({ ...prev, college: e.target.value }))}
+            className="bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-[10px] font-bold focus:outline-none focus:ring-1 focus:ring-[var(--neon-blue)]"
+          >
+            <option value="all">ALL COLLEGES</option>
+            {COLLEGES.map(c => <option key={c} value={c}>{c.toUpperCase()}</option>)}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-[8px] font-black text-zinc-600 uppercase tracking-widest ml-1">Visitor Type</label>
+          <select 
+            value={filters.role}
+            onChange={(e) => setFilters(prev => ({ ...prev, role: e.target.value }))}
+            className="bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-[10px] font-bold focus:outline-none focus:ring-1 focus:ring-[var(--neon-blue)]"
+          >
+            <option value="all">ALL TYPES</option>
+            <option value="student">STUDENTS ONLY</option>
+            <option value="employee">EMPLOYEES (FACULTY/STAFF)</option>
+          </select>
+        </div>
+
+        <button 
+          onClick={() => setFilters({ purpose: 'all', college: 'all', role: 'all' })}
+          className="ml-auto text-[9px] font-black text-zinc-500 hover:text-[var(--neon-red)] transition-colors uppercase tracking-widest"
+        >
+          Clear Filters
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="stat-card p-6 rounded-3xl">
+        <div className="stat-card p-6 rounded-3xl border-l-4 border-[var(--neon-blue)]">
           <div className="flex justify-between items-start">
-            <h3 className="text-[10px] text-[var(--text-secondary)] uppercase mb-2 font-bold">Total Logs</h3>
+            <h3 className="text-[10px] text-[var(--text-secondary)] uppercase mb-2 font-bold tracking-widest">Total Logs</h3>
             <Users size={16} className="text-[var(--neon-blue)]" />
           </div>
           <p className="text-4xl font-black text-[var(--neon-blue)]">{stats.total}</p>
+          <p className="text-[8px] text-zinc-500 mt-2 uppercase font-bold">Filtered Count</p>
         </div>
-        <div className="stat-card p-6 rounded-3xl">
+        <div className="stat-card p-6 rounded-3xl border-l-4 border-[var(--neon-green)]">
           <div className="flex justify-between items-start">
-            <h3 className="text-[10px] text-[var(--text-secondary)] uppercase mb-2 font-bold">Live Visitors</h3>
+            <h3 className="text-[10px] text-[var(--text-secondary)] uppercase mb-2 font-bold tracking-widest">Live Visitors</h3>
             <Activity size={16} className="text-[var(--neon-green)] animate-pulse" />
           </div>
           <p className="text-4xl font-black text-[var(--neon-green)]">{stats.liveCount}</p>
+          <p className="text-[8px] text-zinc-500 mt-2 uppercase font-bold">Active in last hour</p>
         </div>
-        <div className="stat-card p-6 rounded-3xl md:col-span-2">
-          <h3 className="text-[10px] text-[var(--text-secondary)] uppercase mb-2 font-bold">Traffic Trend</h3>
-          <div className="h-16">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={stats.dailyStats}>
-                <Line type="monotone" dataKey="count" stroke="var(--neon-blue)" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
+        <div className="stat-card p-6 rounded-3xl border-l-4 border-purple-500">
+          <div className="flex justify-between items-start">
+            <h3 className="text-[10px] text-[var(--text-secondary)] uppercase mb-2 font-bold tracking-widest">Avg. Stay</h3>
+            <Calendar size={16} className="text-purple-500" />
           </div>
+          <p className="text-4xl font-black text-purple-500">15m</p>
+          <p className="text-[8px] text-zinc-500 mt-2 uppercase font-bold">Estimated duration</p>
+        </div>
+        <div className="stat-card p-6 rounded-3xl border-l-4 border-orange-500">
+          <div className="flex justify-between items-start">
+            <h3 className="text-[10px] text-[var(--text-secondary)] uppercase mb-2 font-bold tracking-widest">Peak Hour</h3>
+            <Activity size={16} className="text-orange-500" />
+          </div>
+          <p className="text-4xl font-black text-orange-500">2PM</p>
+          <p className="text-[8px] text-zinc-500 mt-2 uppercase font-bold">Most active time</p>
         </div>
       </div>
 

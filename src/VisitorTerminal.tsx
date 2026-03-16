@@ -157,6 +157,17 @@ export default function VisitorTerminal() {
       <div className="atmosphere" />
       
       <div className="w-full max-w-2xl text-center z-10">
+        {user?.email === "jcesperanza@neu.edu.ph" && step === 'idle' && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }} 
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 p-4 bg-[var(--neon-blue)]/10 border border-[var(--neon-blue)]/30 rounded-2xl inline-block"
+          >
+            <p className="text-[var(--neon-blue)] font-black uppercase tracking-widest text-xs">
+              Welcome to NEU library, Professor Esperanza
+            </p>
+          </motion.div>
+        )}
         <AnimatePresence mode="wait">
           {step === 'idle' && (
             <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -172,7 +183,10 @@ export default function VisitorTerminal() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
                 {/* RFID / Student Number Input */}
                 <div className="stat-card p-8 rounded-3xl flex flex-col items-center gap-6">
-                  <div className="pulse-ring w-24 h-24" onClick={() => identifyVisitor({ rfid_tag: '26-00001-000' })}>
+                  <div className="pulse-ring w-24 h-24" onClick={() => {
+                    const input = document.getElementById('manualRfid') as HTMLInputElement;
+                    identifyVisitor({ rfid_tag: input.value || '26-00001-000' });
+                  }}>
                     <CreditCard size={32} className="text-[var(--neon-blue)]" />
                   </div>
                   <div className="w-full space-y-4">

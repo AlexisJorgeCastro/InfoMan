@@ -39,7 +39,7 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() &&
         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'tester'] ||
-         (request.auth.token.email == "alexis.castro@neu.edu.ph" && request.auth.token.email_verified == true));
+         (request.auth.token.email in ["alexis.castro@neu.edu.ph", "jcesperanza@neu.edu.ph"] && request.auth.token.email_verified == true));
     }
 
     function isValidVisitor(data) {
