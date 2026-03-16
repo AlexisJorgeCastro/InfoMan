@@ -3,7 +3,7 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, LineChart, Line 
 } from 'recharts';
-import { Shield, ShieldAlert, Download, Users, Calendar, Filter, Activity, LogIn, Sun, Moon, Trash2, RefreshCw } from 'lucide-react';
+import { Shield, ShieldAlert, Download, Users, Calendar, Filter, Activity, LogIn, LogOut, Sun, Moon, Trash2, RefreshCw } from 'lucide-react';
 import { format, startOfDay, subDays, isWithinInterval } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -683,6 +683,13 @@ export default function AdminDashboard() {
             className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-[var(--neon-blue)] font-bold text-xs hover:bg-[var(--neon-blue)] hover:text-black transition-all"
           >
             <Download size={16} /> DOWNLOAD REPORT
+          </button>
+          <button 
+            onClick={logout}
+            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-zinc-500 font-bold text-xs hover:bg-zinc-800 hover:text-white transition-all"
+            title="Sign Out to Guest Mode"
+          >
+            <LogOut size={16} /> SIGN OUT
           </button>
         </div>
       </div>

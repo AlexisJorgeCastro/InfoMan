@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { CreditCard, CheckCircle2, BookOpen, Search, Monitor, PenTool, Mail, Users, LogIn, Sun, Moon } from 'lucide-react';
+import { CreditCard, CheckCircle2, BookOpen, Search, Monitor, PenTool, Mail, Users, LogIn, LogOut, Sun, Moon } from 'lucide-react';
 import { format } from 'date-fns';
 import { 
   collection, 
@@ -13,7 +13,7 @@ import {
   orderBy,
   limit
 } from 'firebase/firestore';
-import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'firebase/auth';
 import { db, auth } from './firebase';
 
 const PURPOSES = [
@@ -70,6 +70,18 @@ export default function VisitorTerminal() {
 
     return () => unsubscribe();
   }, [user]);
+
+  const handleAuthAction = async () => {
+    if (user && !user.isAnonymous) {
+      try {
+        await signOut(auth);
+      } catch (err: any) {
+        setError("Logout Failed: " + err.message);
+      }
+    } else {
+      login();
+    }
+  };
 
   const login = async () => {
     try {
@@ -319,11 +331,11 @@ export default function VisitorTerminal() {
       {/* System Status / Login */}
       <div className="fixed bottom-4 left-4 z-50 flex gap-2">
         <button 
-          onClick={login}
+          onClick={handleAuthAction}
           className="p-3 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-[var(--neon-blue)] transition-all shadow-lg flex items-center gap-2 px-4 border border-zinc-200 dark:border-zinc-700"
-          title="System Login"
+          title={user && !user.isAnonymous ? "Switch to Guest Mode" : "System Login"}
         >
-          <LogIn size={16} />
+          {user && !user.isAnonymous ? <LogOut size={16} /> : <LogIn size={16} />}
           <span className="text-[10px] font-bold uppercase tracking-widest">
             {user ? (user.isAnonymous ? "Guest Mode" : "Librarian Mode") : "System Offline"}
           </span>
