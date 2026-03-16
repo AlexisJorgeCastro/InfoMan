@@ -156,22 +156,11 @@ export default function VisitorTerminal() {
       <div className="atmosphere" />
       
       <div className="w-full max-w-2xl text-center z-10">
-        {user?.email === "jcesperanza@neu.edu.ph" && step === 'idle' && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20 }} 
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8 p-4 bg-[var(--neon-blue)]/10 border border-[var(--neon-blue)]/30 rounded-2xl inline-block"
-          >
-            <p className="text-[var(--neon-blue)] font-black uppercase tracking-widest text-xs">
-              Welcome to NEU library, Professor Esperanza
-            </p>
-          </motion.div>
-        )}
         <AnimatePresence mode="wait">
           {step === 'idle' && (
             <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <div className="mb-8 flex justify-center items-center gap-4">
-                <div className="stat-card px-4 py-2 rounded-full flex items-center gap-2 text-[var(--neon-blue)]">
+                <div className="stat-card px-4 py-2 rounded-full flex items-center gap-2 text-[var(--neon-blue)] border-zinc-200 dark:border-zinc-800">
                   <Users size={16} />
                   <span className="text-[10px] font-black uppercase tracking-widest">Today's Visitors: {liveCount}</span>
                 </div>
@@ -181,7 +170,7 @@ export default function VisitorTerminal() {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
                 {/* RFID / Student Number Input */}
-                <div className="stat-card p-8 rounded-3xl flex flex-col items-center gap-6">
+                <div className="stat-card p-8 rounded-3xl flex flex-col items-center gap-6 border-zinc-200 dark:border-zinc-800">
                   <div className="pulse-ring w-24 h-24" onClick={() => {
                     const input = document.getElementById('manualRfid') as HTMLInputElement;
                     identifyVisitor({ rfid_tag: input.value || '26-00001-000' });
@@ -196,7 +185,7 @@ export default function VisitorTerminal() {
                         id="manualRfid"
                         placeholder="00-00000-000"
                         maxLength={12}
-                        className="w-full bg-[var(--input-bg)] border border-zinc-800/30 rounded-xl px-4 py-3 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-center tracking-widest text-[var(--text-primary)]"
+                        className="w-full bg-[var(--input-bg)] border border-zinc-300 dark:border-zinc-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-center tracking-widest text-[var(--text-primary)]"
                         onChange={(e) => {
                           let val = e.target.value.replace(/\D/g, '');
                           if (val.length > 2) val = val.slice(0, 2) + '-' + val.slice(2);
@@ -223,9 +212,9 @@ export default function VisitorTerminal() {
                 </div>
 
                 {/* Email Input */}
-                <div className="stat-card p-8 rounded-3xl flex flex-col items-center gap-6">
+                <div className="stat-card p-8 rounded-3xl flex flex-col items-center gap-6 border-zinc-200 dark:border-zinc-800">
                   <div 
-                    className="w-24 h-24 rounded-full border-2 border-zinc-800 flex items-center justify-center hover:border-[var(--neon-green)] hover:text-[var(--neon-green)] transition-all cursor-pointer group"
+                    className="w-24 h-24 rounded-full border-2 border-zinc-300 dark:border-zinc-800 flex items-center justify-center hover:border-[var(--neon-green)] hover:text-[var(--neon-green)] transition-all cursor-pointer group"
                     onClick={() => identifyVisitor({ email: 'juan.delacruz@neu.edu.ph' })}
                   >
                     <Mail size={32} className="group-hover:scale-110 transition-transform text-[var(--neon-green)]" />
@@ -237,7 +226,7 @@ export default function VisitorTerminal() {
                         type="email" 
                         id="manualEmail"
                         placeholder="ENTER EMAIL ADDRESS"
-                        className="w-full bg-[var(--input-bg)] border border-zinc-800/30 rounded-xl px-4 py-3 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--neon-green)] text-center tracking-widest text-[var(--text-primary)]"
+                        className="w-full bg-[var(--input-bg)] border border-zinc-300 dark:border-zinc-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--neon-green)] text-center tracking-widest text-[var(--text-primary)]"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             identifyVisitor({ email: (e.target as HTMLInputElement).value });
@@ -266,9 +255,9 @@ export default function VisitorTerminal() {
 
           {step === 'purpose' && (
             <motion.div key="purpose" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
-              <div className="stat-card p-8 rounded-[2.5rem] mb-8">
+              <div className="stat-card p-8 rounded-[2.5rem] mb-8 border-zinc-200 dark:border-zinc-800">
                 <div className="flex items-center gap-4 mb-8 text-left">
-                  <div className="w-16 h-16 bg-zinc-800 rounded-2xl flex items-center justify-center text-2xl font-bold text-[var(--neon-blue)]">
+                  <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-2xl flex items-center justify-center text-2xl font-bold text-[var(--neon-blue)]">
                     {visitor.name.charAt(0)}
                   </div>
                   <div>
@@ -294,6 +283,7 @@ export default function VisitorTerminal() {
             <motion.div key="welcome" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
               <CheckCircle2 size={80} className="text-[var(--neon-green)] mx-auto mb-6 drop-shadow-[0_0_15px_var(--neon-green)]" />
               <h1 className="text-4xl font-black mb-2 glow-text text-[var(--neon-green)]">Welcome to NEU Library!</h1>
+              <p className="text-zinc-400 text-xs font-bold uppercase tracking-[0.2em] mb-8">Access Granted • Entry Logged</p>
               
               <div className="stat-card p-8 rounded-3xl mt-8 max-w-sm mx-auto text-left space-y-4 border-zinc-800/50">
                 <div className="flex justify-between items-center border-b border-zinc-800/30 pb-3">
@@ -330,7 +320,7 @@ export default function VisitorTerminal() {
       <div className="fixed bottom-4 left-4 z-50 flex gap-2">
         <button 
           onClick={login}
-          className="p-3 rounded-full bg-zinc-800 text-zinc-400 hover:text-[#00f2ff] transition-all shadow-lg flex items-center gap-2 px-4"
+          className="p-3 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-[var(--neon-blue)] transition-all shadow-lg flex items-center gap-2 px-4 border border-zinc-200 dark:border-zinc-700"
           title="System Login"
         >
           <LogIn size={16} />

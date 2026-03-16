@@ -268,22 +268,22 @@ export default function AdminDashboard() {
       });
       setLogs(logsWithCurrentStatus);
 
-      // Calculate Stats
-      let filteredLogs = allLogs;
+      // Calculate Stats & Filter Logs
+      let filteredLogs = logsWithCurrentStatus;
       const now = new Date();
       const todayStart = startOfDay(now);
 
       if (period === 'today') {
-        filteredLogs = allLogs.filter(l => l.timestamp >= todayStart);
+        filteredLogs = filteredLogs.filter(l => l.timestamp >= todayStart);
       } else if (period === 'week') {
-        filteredLogs = allLogs.filter(l => l.timestamp >= subDays(todayStart, 7));
+        filteredLogs = filteredLogs.filter(l => l.timestamp >= subDays(todayStart, 7));
       } else if (period === 'month') {
-        filteredLogs = allLogs.filter(l => l.timestamp >= subDays(todayStart, 30));
+        filteredLogs = filteredLogs.filter(l => l.timestamp >= subDays(todayStart, 30));
       } else if (period === 'custom' && dateRange.start && dateRange.end) {
         const start = new Date(dateRange.start);
         const end = new Date(dateRange.end);
         end.setHours(23, 59, 59, 999);
-        filteredLogs = allLogs.filter(l => isWithinInterval(l.timestamp, { start, end }));
+        filteredLogs = filteredLogs.filter(l => isWithinInterval(l.timestamp, { start, end }));
       }
 
       // Apply additional filters
@@ -298,6 +298,8 @@ export default function AdminDashboard() {
       } else if (filters.role === 'student') {
         filteredLogs = filteredLogs.filter(l => l.visitor_role === 'student');
       }
+
+      setLogs(filteredLogs);
 
       const purposeMap: any = {};
       const collegeMap: any = {};
@@ -617,9 +619,12 @@ export default function AdminDashboard() {
 
     // Detailed Logs
     doc.addPage();
-    doc.text('DETAILED VISITOR LOGS', 14, 20);
+    doc.setFontSize(14);
+    doc.setTextColor(0, 242, 255);
+    doc.text('DETAILED VISITOR ACTIVITY LOGS', 14, 20);
+    
     const logData = logs.map(l => [
-      l.visitor_name,
+      `${l.visitor_name}\n(${l.visitor_id})`,
       l.visitor_college,
       l.purpose,
       format(new Date(l.timestamp), 'MMM dd, yyyy p')
@@ -627,8 +632,16 @@ export default function AdminDashboard() {
     
     autoTable(doc, {
       startY: 25,
-      head: [['Name', 'College/Office', 'Purpose', 'Timestamp']],
+      head: [['Visitor Identity', 'College/Office', 'Purpose', 'Timestamp']],
       body: logData,
+      headStyles: { fillColor: [0, 242, 255], textColor: 0, fontStyle: 'bold' },
+      styles: { fontSize: 9, cellPadding: 4 },
+      columnStyles: {
+        0: { cellWidth: 50 },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 40 },
+        3: { cellWidth: 40 }
+      }
     });
 
     doc.save(`NEU_Library_Report_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
@@ -700,7 +713,7 @@ export default function AdminDashboard() {
           <select 
             value={filters.purpose}
             onChange={(e) => setFilters(prev => ({ ...prev, purpose: e.target.value }))}
-            className="bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-[10px] font-bold focus:outline-none focus:ring-1 focus:ring-[var(--neon-blue)]"
+            className="bg-[var(--input-bg)] border border-zinc-300 dark:border-zinc-800 rounded-lg px-3 py-1.5 text-[10px] font-bold focus:outline-none focus:ring-1 focus:ring-[var(--neon-blue)] text-[var(--text-primary)]"
           >
             <option value="all">ALL PURPOSES</option>
             <option value="Reading books">READING BOOKS</option>
@@ -715,7 +728,7 @@ export default function AdminDashboard() {
           <select 
             value={filters.college}
             onChange={(e) => setFilters(prev => ({ ...prev, college: e.target.value }))}
-            className="bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-[10px] font-bold focus:outline-none focus:ring-1 focus:ring-[var(--neon-blue)]"
+            className="bg-[var(--input-bg)] border border-zinc-300 dark:border-zinc-800 rounded-lg px-3 py-1.5 text-[10px] font-bold focus:outline-none focus:ring-1 focus:ring-[var(--neon-blue)] text-[var(--text-primary)]"
           >
             <option value="all">ALL COLLEGES</option>
             {COLLEGES.map(c => <option key={c} value={c}>{c.toUpperCase()}</option>)}
@@ -727,7 +740,7 @@ export default function AdminDashboard() {
           <select 
             value={filters.role}
             onChange={(e) => setFilters(prev => ({ ...prev, role: e.target.value }))}
-            className="bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-[10px] font-bold focus:outline-none focus:ring-1 focus:ring-[var(--neon-blue)]"
+            className="bg-[var(--input-bg)] border border-zinc-300 dark:border-zinc-800 rounded-lg px-3 py-1.5 text-[10px] font-bold focus:outline-none focus:ring-1 focus:ring-[var(--neon-blue)] text-[var(--text-primary)]"
           >
             <option value="all">ALL TYPES</option>
             <option value="student">STUDENTS ONLY</option>
@@ -744,37 +757,37 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="stat-card p-6 rounded-3xl border-l-4 border-[var(--neon-blue)]">
+        <div className="stat-card p-6 rounded-3xl border-l-4 border-[var(--neon-blue)] flex flex-col justify-between">
           <div className="flex justify-between items-start">
             <h3 className="text-[10px] text-[var(--text-secondary)] uppercase mb-2 font-bold tracking-widest">Total Logs</h3>
             <Users size={16} className="text-[var(--neon-blue)]" />
           </div>
           <p className="text-4xl font-black text-[var(--neon-blue)]">{stats.total}</p>
-          <p className="text-[8px] text-zinc-500 mt-2 uppercase font-bold">Filtered Count</p>
+          <p className="text-[8px] text-zinc-500 dark:text-zinc-400 mt-2 uppercase font-bold">Filtered Count</p>
         </div>
-        <div className="stat-card p-6 rounded-3xl border-l-4 border-[var(--neon-green)]">
+        <div className="stat-card p-6 rounded-3xl border-l-4 border-[var(--neon-green)] flex flex-col justify-between">
           <div className="flex justify-between items-start">
             <h3 className="text-[10px] text-[var(--text-secondary)] uppercase mb-2 font-bold tracking-widest">Live Visitors</h3>
             <Activity size={16} className="text-[var(--neon-green)] animate-pulse" />
           </div>
           <p className="text-4xl font-black text-[var(--neon-green)]">{stats.liveCount}</p>
-          <p className="text-[8px] text-zinc-500 mt-2 uppercase font-bold">Active in last hour</p>
+          <p className="text-[8px] text-zinc-500 dark:text-zinc-400 mt-2 uppercase font-bold">Active in last hour</p>
         </div>
-        <div className="stat-card p-6 rounded-3xl border-l-4 border-purple-500">
+        <div className="stat-card p-6 rounded-3xl border-l-4 border-purple-500 flex flex-col justify-between">
           <div className="flex justify-between items-start">
             <h3 className="text-[10px] text-[var(--text-secondary)] uppercase mb-2 font-bold tracking-widest">Avg. Stay</h3>
             <Calendar size={16} className="text-purple-500" />
           </div>
           <p className="text-4xl font-black text-purple-500">15m</p>
-          <p className="text-[8px] text-zinc-500 mt-2 uppercase font-bold">Estimated duration</p>
+          <p className="text-[8px] text-zinc-500 dark:text-zinc-400 mt-2 uppercase font-bold">Estimated duration</p>
         </div>
-        <div className="stat-card p-6 rounded-3xl border-l-4 border-orange-500">
+        <div className="stat-card p-6 rounded-3xl border-l-4 border-orange-500 flex flex-col justify-between">
           <div className="flex justify-between items-start">
             <h3 className="text-[10px] text-[var(--text-secondary)] uppercase mb-2 font-bold tracking-widest">Peak Hour</h3>
             <Activity size={16} className="text-orange-500" />
           </div>
           <p className="text-4xl font-black text-orange-500">2PM</p>
-          <p className="text-[8px] text-zinc-500 mt-2 uppercase font-bold">Most active time</p>
+          <p className="text-[8px] text-zinc-500 dark:text-zinc-400 mt-2 uppercase font-bold">Most active time</p>
         </div>
       </div>
 
@@ -953,21 +966,21 @@ export default function AdminDashboard() {
               </form>
             ) : (
               <div className="space-y-6">
-                <div className="space-y-4 bg-black/40 p-6 rounded-2xl border border-zinc-800">
-                  <div className="flex flex-col border-b border-zinc-800 pb-3">
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Full Name</span>
+                <div className="space-y-4 bg-[var(--glass-surface)] p-6 rounded-2xl border border-[var(--glass-border)]">
+                  <div className="flex flex-col border-b border-[var(--glass-border)] pb-3">
+                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold uppercase tracking-widest mb-1">Full Name</span>
                     <span className="text-sm font-black text-[var(--text-primary)] uppercase">{registrationPreview.name}</span>
                   </div>
-                  <div className="flex flex-col border-b border-zinc-800 pb-3">
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Institutional Email</span>
+                  <div className="flex flex-col border-b border-[var(--glass-border)] pb-3">
+                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold uppercase tracking-widest mb-1">Institutional Email</span>
                     <span className="text-sm font-bold text-[var(--neon-blue)] lowercase">{registrationPreview.email}</span>
                   </div>
-                  <div className="flex flex-col border-b border-zinc-800 pb-3">
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Student ID / RFID</span>
+                  <div className="flex flex-col border-b border-[var(--glass-border)] pb-3">
+                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold uppercase tracking-widest mb-1">Student ID / RFID</span>
                     <span className="text-sm font-black text-[var(--neon-green)] tracking-widest">{registrationPreview.rfid_tag}</span>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">College / Office</span>
+                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold uppercase tracking-widest mb-1">College / Office</span>
                     <span className="text-sm font-bold text-[var(--text-primary)] uppercase leading-tight">{registrationPreview.college}</span>
                   </div>
                 </div>
@@ -1004,7 +1017,7 @@ export default function AdminDashboard() {
         
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="bg-zinc-800/20 text-[var(--neon-blue)] text-[10px] uppercase">
+            <thead className="bg-zinc-100 dark:bg-zinc-800/20 text-[var(--neon-blue)] text-[10px] uppercase">
               <tr>
                 <th className="p-4">Visitor Identity</th>
                 <th className="p-4">College/Office</th>
@@ -1013,7 +1026,7 @@ export default function AdminDashboard() {
                 <th className="p-4">Security Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800/30">
+            <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/30">
               {logs.map((log) => (
                 <tr key={log.id} className="hover:bg-zinc-500/5 transition-colors">
                   <td className="p-4 font-bold text-sm uppercase text-[var(--text-primary)]">{log.visitor_name}</td>

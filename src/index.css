@@ -29,13 +29,13 @@
   --neon-red: #cc0000;
   --bg-primary: #f8fafc;
   --text-primary: #0f172a;
-  --text-secondary: #475569;
+  --text-secondary: #334155;
   --input-bg: #ffffff;
-  --card-bg: rgba(255, 255, 255, 0.8);
-  --card-border: rgba(0, 136, 204, 0.2);
-  --tag-bg: rgba(0, 136, 204, 0.1);
-  --glass-surface: rgba(0, 0, 0, 0.02);
-  --glass-border: rgba(0, 0, 0, 0.1);
+  --card-bg: rgba(255, 255, 255, 0.9);
+  --card-border: rgba(0, 136, 204, 0.3);
+  --tag-bg: rgba(0, 136, 204, 0.15);
+  --glass-surface: rgba(0, 0, 0, 0.05);
+  --glass-border: rgba(0, 0, 0, 0.15);
 }
 
 body {
