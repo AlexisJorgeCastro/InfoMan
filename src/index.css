@@ -24,18 +24,18 @@
 }
 
 :root.light {
-  --neon-blue: #0088cc;
-  --neon-green: #228b22;
-  --neon-red: #cc0000;
-  --bg-primary: #f8fafc;
+  --neon-blue: #0077ff;
+  --neon-green: #10b981;
+  --neon-red: #ef4444;
+  --bg-primary: #f1f5f9;
   --text-primary: #0f172a;
-  --text-secondary: #334155;
+  --text-secondary: #475569;
   --input-bg: #ffffff;
-  --card-bg: rgba(255, 255, 255, 0.9);
-  --card-border: rgba(0, 136, 204, 0.3);
-  --tag-bg: rgba(0, 136, 204, 0.15);
-  --glass-surface: rgba(0, 0, 0, 0.05);
-  --glass-border: rgba(0, 0, 0, 0.15);
+  --card-bg: rgba(255, 255, 255, 0.98);
+  --card-border: rgba(0, 119, 255, 0.4);
+  --tag-bg: rgba(0, 119, 255, 0.1);
+  --glass-surface: rgba(0, 0, 0, 0.08);
+  --glass-border: rgba(0, 0, 0, 0.2);
 }
 
 body {
@@ -45,6 +45,7 @@ body {
   font-family: "Orbitron", sans-serif;
   transition: background-color 0.3s ease, color 0.3s ease;
   overflow-x: hidden;
+  line-height: 1.5;
 }
 
 /* Atmospheric background—layered gradients */
@@ -55,20 +56,18 @@ body {
   width: 100%;
   height: 100%;
   z-index: -1;
-  background: 
-    radial-gradient(circle at 50% 30%, rgba(0, 242, 255, 0.1) 0%, transparent 60%),
-    radial-gradient(circle at 10% 80%, rgba(57, 255, 20, 0.05) 0%, transparent 50%),
-    radial-gradient(circle at 90% 10%, rgba(255, 49, 49, 0.05) 0%, transparent 50%);
-  filter: blur(60px);
-  opacity: 0.8;
+  background-image: linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65)), url('https://www.manilatimes.net/manilatimes/uploads/images/2021/10/07/19096.jpg');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  filter: blur(1px);
+  opacity: 1;
   pointer-events: none;
 }
 
 .light .atmosphere {
-  background: 
-    radial-gradient(circle at 50% 30%, rgba(0, 136, 204, 0.05) 0%, transparent 60%),
-    radial-gradient(circle at 10% 80%, rgba(34, 139, 34, 0.03) 0%, transparent 50%);
-  opacity: 0.4;
+  background-image: linear-gradient(rgba(241, 245, 249, 0.8), rgba(241, 245, 249, 0.8)), url('https://www.manilatimes.net/manilatimes/uploads/images/2021/10/07/19096.jpg');
+  opacity: 1;
 }
 
 /* Futuristic Header Styles */

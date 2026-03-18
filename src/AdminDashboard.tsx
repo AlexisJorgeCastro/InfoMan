@@ -22,8 +22,40 @@ import {
   updateDoc
 } from 'firebase/firestore';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, signInAnonymously } from 'firebase/auth';
-import { db, auth } from './firebase';
+import { auth, db } from './firebase';
 import { setDoc } from 'firebase/firestore';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 const CHART_COLORS = ['#1e40af', '#166534', '#92400e', '#991b1b', '#5b21b6'];
 
@@ -39,22 +71,16 @@ const COLLEGES = [
   "College of Criminology"
 ];
 
-export default function AdminDashboard() {
+export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: boolean }) {
   const [logs, setLogs] = React.useState<any[]>([]);
   const [stats, setStats] = React.useState<any>({ total: 0, liveCount: 0, byPurpose: [], byCollege: [], dailyStats: [] });
   const [period, setPeriod] = React.useState('today');
   const [dateRange, setDateRange] = React.useState({ start: '', end: '' });
   const [filters, setFilters] = React.useState({ purpose: 'all', college: 'all', role: 'all' });
-  const [user, setUser] = React.useState<any>(null);
-  const [isAdmin, setIsAdmin] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [showRegisterModal, setShowRegisterModal] = React.useState(false);
-  const [showDummyLogin, setShowDummyLogin] = React.useState(false);
-  const [loginTab, setLoginTab] = React.useState<'google' | 'manual'>('manual');
   const [activeTab, setActiveTab] = React.useState<'overview' | 'logs' | 'students'>('overview');
   const [students, setStudents] = React.useState<any[]>([]);
-  const [isLoggingIn, setIsLoggingIn] = React.useState(false);
-  const [dummyCredentials, setDummyCredentials] = React.useState({ username: '', password: '' });
   const [newStudent, setNewStudent] = React.useState({ 
     firstName: '', 
     middleName: '', 
@@ -67,7 +93,6 @@ export default function AdminDashboard() {
   const [registrationPreview, setRegistrationPreview] = React.useState<any>(null);
   const [showResetConfirm, setShowResetConfirm] = React.useState(false);
   const [notification, setNotification] = React.useState<{message: string, type: 'success' | 'error'} | null>(null);
-  const isAuthenticatingTester = React.useRef(false);
 
   React.useEffect(() => {
     if (notification) {
@@ -90,122 +115,125 @@ export default function AdminDashboard() {
     return `${year}-${sequence}-000`;
   };
 
-  React.useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (u) => {
-      setUser(u);
-      if (u) {
-        // Check if admin
-        const adminEmails = ["alexis.castro@neu.edu.ph", "jcesperanza@neu.edu.ph", "ajcken319@gmail.com", "chynna.cardona@neu.edu.ph"];
-        if (adminEmails.includes(u.email)) {
-          setIsAdmin(true);
-        } else if (u.isAnonymous) {
-          // If we are currently in the middle of dummyLogin, let it handle the state
-          if (isAuthenticatingTester.current) return;
+  const fetchData = React.useCallback(async () => {
+    if (!isAdmin) return;
+    setLoading(true);
 
-          // Check if it's a verified tester session
-          try {
-            const userDoc = await getDoc(doc(db, 'users', u.uid));
-            if (userDoc.exists() && userDoc.data().role === 'tester') {
-              setIsAdmin(true);
-            } else {
-              setIsAdmin(false);
-            }
-          } catch (err) {
-            console.error("Auth State Check Error:", err);
-            setIsAdmin(false);
-          }
-        } else {
-          // Check users collection for role
-          const userDoc = await getDoc(doc(db, 'users', u.uid));
-          if (userDoc.exists() && userDoc.data().role === 'admin') {
-            setIsAdmin(true);
-          } else {
-            setIsAdmin(false);
-          }
-        }
-      } else {
-        setIsAdmin(false);
-      }
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const login = async () => {
     try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-    } catch (err: any) {
-      console.error("Login Failed:", err);
+      const now = new Date();
+      const todayStart = startOfDay(now);
+      let logQuery;
+
+      // Optimize query based on period to reduce initial data load
+      if (period === 'today') {
+        logQuery = query(collection(db, 'logs'), where('timestamp', '>=', Timestamp.fromDate(todayStart)), orderBy('timestamp', 'desc'));
+      } else if (period === 'week') {
+        logQuery = query(collection(db, 'logs'), where('timestamp', '>=', Timestamp.fromDate(subDays(todayStart, 7))), orderBy('timestamp', 'desc'));
+      } else if (period === 'month') {
+        logQuery = query(collection(db, 'logs'), where('timestamp', '>=', Timestamp.fromDate(subDays(todayStart, 30))), orderBy('timestamp', 'desc'));
+      } else if (period === 'custom' && dateRange.start && dateRange.end) {
+        const start = new Date(dateRange.start);
+        const end = new Date(dateRange.end);
+        end.setHours(23, 59, 59, 999);
+        logQuery = query(collection(db, 'logs'), where('timestamp', '>=', Timestamp.fromDate(start)), where('timestamp', '<=', Timestamp.fromDate(end)), orderBy('timestamp', 'desc'));
+      } else {
+        // Fallback or 'all' - limit to prevent massive data transfer
+        logQuery = query(collection(db, 'logs'), orderBy('timestamp', 'desc'), limit(500));
+      }
+      
+      const snapshot = await getDocs(logQuery);
+      const allLogs = snapshot.docs.map(doc => {
+        const data = doc.data() as any;
+        return {
+          id: doc.id,
+          ...data,
+          timestamp: (data.timestamp as Timestamp).toDate()
+        };
+      }) as any[];
+
+      // Fetch visitors only if needed (e.g. for students tab or to get current block status)
+      // For performance, we only fetch visitors present in the current logs unless on students tab
+      const visitorIds = [...new Set(allLogs.map(l => l.visitor_id))].filter(Boolean);
+      let currentVisitors: any[] = [];
+      
+      if (activeTab === 'students') {
+        const vSnap = await getDocs(collection(db, 'visitors'));
+        currentVisitors = vSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      } else if (visitorIds.length > 0) {
+        // Fetch only visitors in logs (batch in chunks of 30 for 'in' query - Firestore limit is 30)
+        const chunks = [];
+        for (let i = 0; i < visitorIds.length; i += 30) {
+          chunks.push(visitorIds.slice(i, i + 30));
+        }
+        const visitorPromises = chunks.map(chunk => 
+          getDocs(query(collection(db, 'visitors'), where('rfid_tag', 'in', chunk)))
+        );
+        const visitorSnaps = await Promise.all(visitorPromises);
+        currentVisitors = visitorSnaps.flatMap(snap => snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      }
+
+      setStudents(currentVisitors);
+
+      // Map current block status to logs
+      const logsWithCurrentStatus = allLogs.map(log => {
+        const student = currentVisitors.find(s => s.rfid_tag === log.visitor_id);
+        return {
+          ...log,
+          is_blocked: student ? student.is_blocked : log.is_blocked
+        };
+      });
+
+      // Apply additional filters (purpose, college, role)
+      let filteredLogs = logsWithCurrentStatus;
+      if (filters.purpose !== 'all') {
+        filteredLogs = filteredLogs.filter(l => l.purpose === filters.purpose);
+      }
+      if (filters.college !== 'all') {
+        filteredLogs = filteredLogs.filter(l => l.visitor_college === filters.college);
+      }
+      if (filters.role === 'employee') {
+        filteredLogs = filteredLogs.filter(l => l.visitor_role === 'faculty' || l.visitor_role === 'staff');
+      } else if (filters.role !== 'all') {
+        filteredLogs = filteredLogs.filter(l => l.visitor_role === filters.role);
+      }
+
+      setLogs(filteredLogs);
+
+      const purposeMap: any = {};
+      const collegeMap: any = {};
+      const dailyMap: any = {};
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+      filteredLogs.forEach(l => {
+        purposeMap[l.purpose] = (purposeMap[l.purpose] || 0) + 1;
+        collegeMap[l.visitor_college] = (collegeMap[l.visitor_college] || 0) + 1;
+        
+        const dateStr = format(l.timestamp, 'yyyy-MM-dd');
+        dailyMap[dateStr] = (dailyMap[dateStr] || 0) + 1;
+      });
+
+      const liveCount = allLogs.filter(l => l.timestamp >= oneHourAgo).length;
+
+      setStats({
+        total: filteredLogs.length,
+        liveCount,
+        byPurpose: Object.entries(purposeMap).map(([purpose, count]) => ({ purpose, count })),
+        byCollege: Object.entries(collegeMap).map(([college, count]) => ({ college, count })),
+        dailyStats: Object.entries(dailyMap).map(([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date))
+      });
+      
+      setLoading(false);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.LIST, 'logs/visitors');
+      setLoading(false);
     }
-  };
+  }, [period, dateRange, isAdmin, filters, activeTab]);
 
   const logout = async () => {
     try {
       await signOut(auth);
-      setIsAdmin(false);
-      setUser(null);
     } catch (err: any) {
       console.error("Logout Failed:", err);
-    }
-  };
-
-  const switchAccount = async () => {
-    await logout();
-    await login();
-  };
-
-  const dummyLogin = async (e: React.FormEvent | React.MouseEvent) => {
-    if (e) e.preventDefault();
-    
-    // Aggressive logging for debugging
-    console.log("Login Triggered");
-    if (typeof window !== 'undefined') {
-      // We'll use a notification instead of alert to be less intrusive but still visible
-      setNotification({ message: "Starting authorization process...", type: 'success' });
-    }
-
-    const user_id = dummyCredentials.username.trim();
-    const pass = dummyCredentials.password.trim();
-
-    if (user_id === 'admin_test' && pass === 'neu_admin_2026') {
-      setIsLoggingIn(true);
-      isAuthenticatingTester.current = true;
-      
-      try {
-        if (!auth) throw new Error("Firebase Auth is not initialized.");
-        
-        console.log("Calling signInAnonymously...");
-        const cred = await signInAnonymously(auth);
-        console.log("Auth Success:", cred.user.uid);
-        
-        // Create a temporary tester record in Firestore to grant DB permissions
-        await setDoc(doc(db, 'users', cred.user.uid), {
-          role: 'tester',
-          secret: 'neu_tester_2026',
-          displayName: 'Tester Admin',
-          email: 'tester@neu.edu.ph',
-          timestamp: new Date().toISOString()
-        });
-        
-        setIsAdmin(true);
-        setUser({ email: 'tester@neu.edu.ph', displayName: 'Tester Admin', isAnonymous: true, uid: cred.user.uid });
-        setNotification({ message: "Tester Access Granted!", type: 'success' });
-      } catch (err: any) {
-        console.error("Tester Login Error:", err);
-        let msg = err.message || "Unknown error occurred";
-        if (err.code === 'auth/operation-not-allowed') {
-          msg = "Anonymous Auth is disabled. Please enable it in Firebase Console > Authentication > Sign-in method.";
-        } else if (err.code === 'auth/network-request-failed') {
-          msg = "Network error. Please check your internet connection and authorized domains.";
-        }
-        setNotification({ message: "Login Error: " + msg, type: 'error' });
-      } finally {
-        setIsLoggingIn(false);
-        isAuthenticatingTester.current = false;
-      }
-    } else {
-      setNotification({ message: "Invalid Tester ID or Access Key", type: 'error' });
     }
   };
 
@@ -235,102 +263,14 @@ export default function AdminDashboard() {
     }
   };
 
-  const fetchData = React.useCallback(async () => {
-    if (!isAdmin) return;
-
-    try {
-      let q = query(collection(db, 'logs'), orderBy('timestamp', 'desc'));
-      
-      const snapshot = await getDocs(q);
-      const allLogs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: (doc.data().timestamp as Timestamp).toDate()
-      })) as any[];
-
-      setLogs(allLogs);
-
-      // Fetch all visitors (students)
-      const vSnap = await getDocs(collection(db, 'visitors'));
-      const allStudents = vSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as any[];
-      setStudents(allStudents);
-
-      // Map current block status to logs
-      const logsWithCurrentStatus = allLogs.map(log => {
-        const student = allStudents.find(s => s.rfid_tag === log.visitor_id);
-        return {
-          ...log,
-          is_blocked: student ? student.is_blocked : log.is_blocked
-        };
-      });
-      setLogs(logsWithCurrentStatus);
-
-      // Calculate Stats & Filter Logs
-      let filteredLogs = logsWithCurrentStatus;
-      const now = new Date();
-      const todayStart = startOfDay(now);
-
-      if (period === 'today') {
-        filteredLogs = filteredLogs.filter(l => l.timestamp >= todayStart);
-      } else if (period === 'week') {
-        filteredLogs = filteredLogs.filter(l => l.timestamp >= subDays(todayStart, 7));
-      } else if (period === 'month') {
-        filteredLogs = filteredLogs.filter(l => l.timestamp >= subDays(todayStart, 30));
-      } else if (period === 'custom' && dateRange.start && dateRange.end) {
-        const start = new Date(dateRange.start);
-        const end = new Date(dateRange.end);
-        end.setHours(23, 59, 59, 999);
-        filteredLogs = filteredLogs.filter(l => isWithinInterval(l.timestamp, { start, end }));
-      }
-
-      // Apply additional filters
-      if (filters.purpose !== 'all') {
-        filteredLogs = filteredLogs.filter(l => l.purpose === filters.purpose);
-      }
-      if (filters.college !== 'all') {
-        filteredLogs = filteredLogs.filter(l => l.visitor_college === filters.college);
-      }
-      if (filters.role === 'employee') {
-        filteredLogs = filteredLogs.filter(l => l.visitor_role === 'faculty' || l.visitor_role === 'staff');
-      } else if (filters.role === 'student') {
-        filteredLogs = filteredLogs.filter(l => l.visitor_role === 'student');
-      }
-
-      setLogs(filteredLogs);
-
-      const purposeMap: any = {};
-      const collegeMap: any = {};
-      const dailyMap: any = {};
-      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-
-      filteredLogs.forEach(l => {
-        purposeMap[l.purpose] = (purposeMap[l.purpose] || 0) + 1;
-        collegeMap[l.visitor_college] = (collegeMap[l.visitor_college] || 0) + 1;
-        
-        const dateStr = format(l.timestamp, 'yyyy-MM-dd');
-        dailyMap[dateStr] = (dailyMap[dateStr] || 0) + 1;
-      });
-
-      const liveCount = allLogs.filter(l => l.timestamp >= oneHourAgo).length;
-
-      setStats({
-        total: filteredLogs.length,
-        liveCount,
-        byPurpose: Object.entries(purposeMap).map(([purpose, count]) => ({ purpose, count })),
-        byCollege: Object.entries(collegeMap).map(([college, count]) => ({ college, count })),
-        dailyStats: Object.entries(dailyMap).map(([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date))
-      });
-    } catch (err) {
-      console.error("Fetch Data Error:", err);
+  React.useEffect(() => {
+    if (user && isAdmin) {
+      fetchData();
     }
-  }, [period, dateRange, isAdmin, filters]);
+  }, [user, isAdmin, period, filters, dateRange, fetchData]);
 
   React.useEffect(() => {
     if (!isAdmin) return;
-    fetchData();
     const q = query(collection(db, 'logs'), orderBy('timestamp', 'desc'), limit(1));
     const unsubscribe = onSnapshot(q, () => {
       fetchData();
@@ -339,145 +279,13 @@ export default function AdminDashboard() {
   }, [fetchData, isAdmin]);
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#050505]">
-      <div className="text-[var(--neon-blue)] font-black tracking-widest animate-pulse">AUTHENTICATING...</div>
-    </div>
-  );
-
-  if (!isAdmin) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#050505] p-4 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--bg-primary)]">
       <div className="atmosphere" />
-      
-      {notification && (
-        <div className={`fixed top-12 left-1/2 -translate-x-1/2 z-[500] px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-2xl animate-in slide-in-from-top-4 duration-300 ${
-          notification.type === 'success' ? 'bg-[var(--neon-green)] text-black' : 'bg-[var(--neon-red)] text-white'
-        }`}>
-          {notification.message}
-        </div>
-      )}
-
-      <div className="stat-card p-8 md:p-12 rounded-[3rem] text-center max-w-lg w-full z-[100] border-zinc-800/50 relative pointer-events-auto">
-        <ShieldAlert size={56} className="text-[var(--neon-red)] mx-auto mb-6" />
-        <h1 className="text-3xl font-black mb-2 glow-text">ACCESS DENIED</h1>
-        <p className="text-[var(--text-secondary)] text-[10px] mb-8 uppercase tracking-[0.3em] font-bold">Authentication Required</p>
-        
-        <div className="flex p-1 bg-black/40 rounded-2xl border border-zinc-800 mb-8">
-          <button 
-            onClick={() => setLoginTab('manual')}
-            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-              loginTab === 'manual' ? 'bg-zinc-800 text-[var(--neon-blue)] shadow-lg' : 'text-zinc-500 hover:text-zinc-300'
-            }`}
-          >
-            Tester Access
-          </button>
-          <button 
-            onClick={() => setLoginTab('google')}
-            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-              loginTab === 'google' ? 'bg-zinc-800 text-[var(--neon-blue)] shadow-lg' : 'text-zinc-500 hover:text-zinc-300'
-            }`}
-          >
-            Official Login
-          </button>
-        </div>
-
-        <div className="min-h-[240px] flex flex-col justify-center">
-          {loginTab === 'manual' ? (
-            <div className="animate-in fade-in slide-in-from-left-4 duration-300">
-              <form onSubmit={dummyLogin} className="space-y-4">
-                <p className="text-xs text-zinc-400 leading-relaxed mb-2">
-                  Enter the provided tester credentials to bypass Google authentication.
-                </p>
-                <div className="space-y-1 text-left">
-                  <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Tester ID</label>
-                  <input 
-                    type="text" 
-                    placeholder="admin_test"
-                    className="w-full bg-black/60 border border-zinc-800 rounded-xl px-4 py-4 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--neon-blue)] transition-all"
-                    value={dummyCredentials.username}
-                    onChange={(e) => setDummyCredentials(prev => ({ ...prev, username: e.target.value }))}
-                    disabled={isLoggingIn}
-                  />
-                </div>
-                <div className="space-y-1 text-left">
-                  <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Access Key</label>
-                  <input 
-                    type="password" 
-                    placeholder="••••••••"
-                    className="w-full bg-black/60 border border-zinc-800 rounded-xl px-4 py-4 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--neon-blue)] transition-all"
-                    value={dummyCredentials.password}
-                    onChange={(e) => setDummyCredentials(prev => ({ ...prev, password: e.target.value }))}
-                    disabled={isLoggingIn}
-                  />
-                </div>
-                <button 
-                  type="button"
-                  onClick={(e) => {
-                    dummyLogin(e);
-                  }}
-                  disabled={isLoggingIn}
-                  className="w-full bg-zinc-800 text-[var(--neon-blue)] py-4 rounded-2xl font-black uppercase tracking-widest text-xs border border-[var(--neon-blue)]/30 hover:bg-[var(--neon-blue)]/10 transition-all mt-2 flex items-center justify-center gap-2 cursor-pointer pointer-events-auto"
-                >
-                  {isLoggingIn ? (
-                    <>
-                      <RefreshCw size={16} className="animate-spin" /> Verifying...
-                    </>
-                  ) : (
-                    "Verify Tester Access"
-                  )}
-                </button>
-                <div className="pt-4 text-[8px] text-zinc-600 uppercase tracking-widest font-bold">
-                  Status: {dummyCredentials.username.length > 0 ? "ID Entered" : "Waiting for ID"} | {dummyCredentials.password.length > 0 ? "Key Entered" : "Waiting for Key"}
-                </div>
-              </form>
-            </div>
-          ) : (
-            <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-              {!user ? (
-                <div className="space-y-6">
-                  <p className="text-xs text-zinc-400 leading-relaxed px-4">
-                    Use your institutional Google account to access the administrative dashboard.
-                  </p>
-                  <button 
-                    onClick={login}
-                    className="w-full bg-[var(--neon-blue)] text-black py-5 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 transition-all shadow-[0_0_20px_rgba(0,242,255,0.2)]"
-                  >
-                    <LogIn size={20} /> Sign in with Google
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-2xl">
-                    <p className="text-[var(--neon-red)] text-[10px] font-black uppercase tracking-widest mb-2">Unauthorized Account</p>
-                    <p className="text-zinc-300 text-xs font-medium break-all">{user.email}</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button 
-                      onClick={switchAccount}
-                      className="bg-[var(--neon-blue)] text-black py-4 rounded-xl font-black uppercase tracking-widest text-[10px] hover:scale-[1.02] transition-all"
-                    >
-                      Switch
-                    </button>
-                    <button 
-                      onClick={logout}
-                      className="bg-zinc-800 text-zinc-400 py-4 rounded-xl font-black uppercase tracking-widest text-[10px] hover:text-white transition-all"
-                    >
-                      Sign Out
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="mt-12 pt-8 border-t border-zinc-900">
-          <p className="text-[9px] text-zinc-600 uppercase font-bold tracking-[0.2em]">
-            NEU Library Monitoring System v2.0
-          </p>
-        </div>
-      </div>
+      <div className="text-[var(--neon-blue)] font-black tracking-widest animate-pulse">SYNCHRONIZING DATA...</div>
     </div>
   );
+
+  if (!isAdmin) return null;
 
   const migrateData = async () => {
     if (!isAdmin) return;
@@ -651,15 +459,18 @@ export default function AdminDashboard() {
     <div className="p-4 md:p-8 min-h-screen text-[var(--text-primary)] relative">
       <div className="atmosphere" />
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-black glow-text">ADMIN COMMAND CENTER</h1>
-          <p className="text-[var(--text-secondary)] text-xs mt-1 tracking-widest uppercase">Library Visitor Monitoring System</p>
+        <div className="flex items-center gap-4">
+          <img src="https://neu.edu.ph/main/img/neu.png" alt="NEU Logo" className="w-16 h-16" />
+          <div>
+            <h1 className="text-3xl font-black glow-text">ADMIN DASHBOARD</h1>
+            <p className="text-[var(--text-secondary)] text-xs mt-1 tracking-widest uppercase">New Era University • Library System</p>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <select 
             value={period} 
             onChange={(e) => setPeriod(e.target.value)}
-            className="stat-card px-4 py-2 rounded-lg text-xs font-bold bg-transparent border-zinc-800 focus:outline-none"
+            className="stat-card px-4 py-2 rounded-lg text-xs font-black bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--text-primary)] shadow-sm"
           >
             <option value="today">TODAY</option>
             <option value="week">LAST 7 DAYS</option>
@@ -668,25 +479,25 @@ export default function AdminDashboard() {
           </select>
           <button 
             onClick={() => setShowRegisterModal(true)}
-            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-[var(--neon-blue)] font-bold text-xs hover:bg-[var(--neon-blue)] hover:text-black transition-all"
+            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-[var(--neon-blue)] font-black text-xs bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 hover:bg-[var(--neon-blue)] hover:text-white dark:hover:text-black transition-all shadow-sm"
           >
             <Users size={16} /> REGISTER STUDENT
           </button>
           <button 
             onClick={() => setShowResetConfirm(true)}
-            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-[var(--neon-red)] font-bold text-xs hover:bg-[var(--neon-red)] hover:text-black transition-all"
+            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-[var(--neon-red)] font-black text-xs bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 hover:bg-[var(--neon-red)] hover:text-white dark:hover:text-black transition-all shadow-sm"
           >
             <RefreshCw size={16} /> RESET SYSTEM
           </button>
           <button 
             onClick={generatePDF}
-            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-[var(--neon-blue)] font-bold text-xs hover:bg-[var(--neon-blue)] hover:text-black transition-all"
+            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-[var(--neon-blue)] font-black text-xs bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 hover:bg-[var(--neon-blue)] hover:text-white dark:hover:text-black transition-all shadow-sm"
           >
             <Download size={16} /> DOWNLOAD REPORT
           </button>
           <button 
             onClick={logout}
-            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-zinc-500 font-bold text-xs hover:bg-zinc-800 hover:text-white transition-all"
+            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-zinc-600 dark:text-zinc-400 font-black text-xs bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 hover:bg-zinc-900 dark:hover:bg-white hover:text-white dark:hover:text-black transition-all shadow-sm"
             title="Sign Out to Guest Mode"
           >
             <LogOut size={16} /> SIGN OUT
@@ -695,32 +506,32 @@ export default function AdminDashboard() {
       </div>
 
       {period === 'custom' && (
-        <div className="stat-card p-4 rounded-2xl mb-8 flex gap-4 items-center animate-in slide-in-from-top-2">
+        <div className="stat-card p-4 rounded-2xl mb-8 flex gap-4 items-center animate-in slide-in-from-top-2 border-2 border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900/50 shadow-sm">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-zinc-500">START:</span>
-            <input type="date" className="bg-transparent text-xs border border-zinc-800 rounded p-1" onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))} />
+            <span className="text-[10px] font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-widest">START:</span>
+            <input type="date" className="bg-white dark:bg-zinc-950 text-xs font-bold border-2 border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)]" onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))} />
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-zinc-500">END:</span>
-            <input type="date" className="bg-transparent text-xs border border-zinc-800 rounded p-1" onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))} />
+            <span className="text-[10px] font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-widest">END:</span>
+            <input type="date" className="bg-white dark:bg-zinc-950 text-xs font-bold border-2 border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)]" onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))} />
           </div>
-          <button onClick={fetchData} className="bg-[var(--neon-blue)] text-black text-[10px] font-bold px-4 py-1 rounded">APPLY</button>
+          <button onClick={fetchData} className="bg-[var(--neon-blue)] text-white dark:text-black text-[10px] font-black px-6 py-2 rounded-lg uppercase tracking-widest hover:scale-105 transition-transform shadow-md">APPLY RANGE</button>
         </div>
       )}
 
       {/* Filters Section */}
-      <div className="stat-card p-6 rounded-3xl mb-8 flex flex-wrap gap-6 items-center border-zinc-800/50">
+      <div className="stat-card p-6 rounded-3xl mb-8 flex flex-wrap gap-6 items-center border-2 border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800/40 shadow-lg">
         <div className="flex items-center gap-3">
-          <Filter size={14} className="text-zinc-500" />
-          <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Filters:</span>
+          <Filter size={18} className="text-[var(--neon-blue)]" />
+          <span className="text-[11px] font-black text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">Filter Records:</span>
         </div>
         
         <div className="flex flex-col gap-1">
-          <label className="text-[8px] font-black text-zinc-600 uppercase tracking-widest ml-1">Purpose</label>
+          <label className="text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-widest ml-1">Purpose</label>
           <select 
             value={filters.purpose}
             onChange={(e) => setFilters(prev => ({ ...prev, purpose: e.target.value }))}
-            className="bg-[var(--input-bg)] border border-zinc-300 dark:border-zinc-800 rounded-lg px-3 py-1.5 text-[10px] font-bold focus:outline-none focus:ring-1 focus:ring-[var(--neon-blue)] text-[var(--text-primary)]"
+            className="bg-zinc-50 dark:bg-zinc-700 border-2 border-zinc-200 dark:border-zinc-600 rounded-xl px-4 py-2.5 text-[11px] font-black focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--text-primary)] shadow-sm transition-all"
           >
             <option value="all">ALL PURPOSES</option>
             <option value="Reading books">READING BOOKS</option>
@@ -731,11 +542,11 @@ export default function AdminDashboard() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-[8px] font-black text-zinc-600 uppercase tracking-widest ml-1">College</label>
+          <label className="text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-widest ml-1">College</label>
           <select 
             value={filters.college}
             onChange={(e) => setFilters(prev => ({ ...prev, college: e.target.value }))}
-            className="bg-[var(--input-bg)] border border-zinc-300 dark:border-zinc-800 rounded-lg px-3 py-1.5 text-[10px] font-bold focus:outline-none focus:ring-1 focus:ring-[var(--neon-blue)] text-[var(--text-primary)]"
+            className="bg-zinc-50 dark:bg-zinc-700 border-2 border-zinc-200 dark:border-zinc-600 rounded-xl px-4 py-2.5 text-[11px] font-black focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--text-primary)] shadow-sm transition-all"
           >
             <option value="all">ALL COLLEGES</option>
             {COLLEGES.map(c => <option key={c} value={c}>{c.toUpperCase()}</option>)}
@@ -743,15 +554,19 @@ export default function AdminDashboard() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-[8px] font-black text-zinc-600 uppercase tracking-widest ml-1">Visitor Type</label>
+          <label className="text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-widest ml-1">Visitor Type</label>
           <select 
             value={filters.role}
             onChange={(e) => setFilters(prev => ({ ...prev, role: e.target.value }))}
-            className="bg-[var(--input-bg)] border border-zinc-300 dark:border-zinc-800 rounded-lg px-3 py-1.5 text-[10px] font-bold focus:outline-none focus:ring-1 focus:ring-[var(--neon-blue)] text-[var(--text-primary)]"
+            className="bg-zinc-50 dark:bg-zinc-700 border-2 border-zinc-200 dark:border-zinc-600 rounded-xl px-4 py-2.5 text-[11px] font-black focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--text-primary)] shadow-sm transition-all"
           >
             <option value="all">ALL TYPES</option>
-            <option value="student">STUDENTS ONLY</option>
-            <option value="employee">EMPLOYEES (FACULTY/STAFF)</option>
+            <option value="student">STUDENTS</option>
+            <option value="faculty">FACULTY</option>
+            <option value="staff">STAFF</option>
+            <option value="admin">ADMINS</option>
+            <option value="test">TEST ACCOUNTS</option>
+            <option value="employee">ALL EMPLOYEES (FACULTY/STAFF)</option>
           </select>
         </div>
 
@@ -911,46 +726,46 @@ export default function AdminDashboard() {
               <form onSubmit={handleRegister} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">First Name</label>
+                    <label className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">First Name</label>
                     <input 
                       required
                       type="text" 
                       placeholder="JUAN"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)]"
+                      className="w-full bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--text-primary)]"
                       value={newStudent.firstName}
                       onChange={(e) => setNewStudent(prev => ({ ...prev, firstName: e.target.value }))}
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Middle Name</label>
+                    <label className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">Middle Name</label>
                     <input 
                       type="text" 
                       placeholder="PROTASIO"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)]"
+                      className="w-full bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--text-primary)]"
                       value={newStudent.middleName}
                       onChange={(e) => setNewStudent(prev => ({ ...prev, middleName: e.target.value }))}
                     />
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Last Name</label>
+                  <label className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">Last Name</label>
                   <input 
                     required
                     type="text" 
                     placeholder="DELA CRUZ"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)]"
+                    className="w-full bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--text-primary)]"
                     value={newStudent.lastName}
                     onChange={(e) => setNewStudent(prev => ({ ...prev, lastName: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">College / Office</label>
+                  <label className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">College / Office</label>
                   <select 
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)]"
+                    className="w-full bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 rounded-xl px-4 py-3 text-sm font-black focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--neon-blue)]"
                     value={newStudent.college}
                     onChange={(e) => setNewStudent(prev => ({ ...prev, college: e.target.value }))}
                   >
-                    {COLLEGES.map(c => <option key={c} value={c}>{c}</option>)}
+                    {COLLEGES.map(c => <option key={c} value={c} className="text-[var(--text-primary)]">{c}</option>)}
                   </select>
                 </div>
                 

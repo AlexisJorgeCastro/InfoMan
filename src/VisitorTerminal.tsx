@@ -16,6 +16,38 @@ import {
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'firebase/auth';
 import { db, auth } from './firebase';
 
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
 const PURPOSES = [
   { id: 'reading', label: 'Reading books', icon: BookOpen },
   { id: 'thesis', label: 'Research for thesis', icon: Search },
@@ -23,33 +55,76 @@ const PURPOSES = [
   { id: 'assignment', label: 'Doing assignments', icon: PenTool },
 ];
 
-export default function VisitorTerminal() {
+const COLLEGES = [
+  "College of Informatics and Computing Studies",
+  "College of Computer Studies",
+  "College of Arts and Sciences",
+  "College of Education",
+  "College of Law",
+  "College of Engineering",
+  "College of Business Administration",
+  "College of Nursing",
+  "College of Criminology",
+  "External / Guest"
+];
+
+const ROLES = ['Student', 'Faculty', 'Staff', 'Admin', 'Test'];
+
+export default function VisitorTerminal({ user }: { user: any }) {
   const [step, setStep] = React.useState('idle');
   const [visitor, setVisitor] = React.useState<any>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [liveCount, setLiveCount] = React.useState(0);
-  const [user, setUser] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (u) => {
-      setUser(u);
-      
-      // Auto-login anonymously if not authenticated
-      if (!u) {
+    const initVisitor = async () => {
+      if (user && user.email) {
+        setLoading(true);
         try {
-          const { signInAnonymously } = await import('firebase/auth');
-          await signInAnonymously(auth);
+          const q = query(collection(db, 'visitors'), where('email', '==', user.email));
+          const snapshot = await getDocs(q);
+          
+          let role = '';
+          if (user.email === 'alexis.castro@neu.edu.ph') role = 'student';
+          if (user.email === 'ajcken319@gmail.com') role = 'test';
+          if (user.email === 'jcesperanza@neu.edu.ph') role = 'faculty';
+
+          if (!snapshot.empty) {
+            const visitorDoc = snapshot.docs[0];
+            const visitorData = { id: visitorDoc.id, ...(visitorDoc.data() as object) };
+            // @ts-ignore
+            if (visitorData.email && (!visitorData.name || visitorData.name === 'New Student')) {
+              // @ts-ignore
+              visitorData.name = parseNameFromEmail(visitorData.email);
+            }
+            // Override role if specified
+            // @ts-ignore
+            if (role !== '' || !visitorData.role) {
+               // @ts-ignore
+               visitorData.role = role || visitorData.role || '';
+            }
+            setVisitor(visitorData);
+          } else {
+            // Derive from email if not in database
+            setVisitor({
+              name: parseNameFromEmail(user.email),
+              email: user.email,
+              rfid_tag: 'N/A',
+              college: '',
+              role: role
+            });
+          }
+          setStep('profile');
         } catch (err) {
-          console.error("Auto-login failed:", err);
+          handleFirestoreError(err, OperationType.GET, 'visitors');
+        } finally {
           setLoading(false);
         }
-      } else {
-        setLoading(false);
       }
-    });
-    return () => unsubscribe();
-  }, []);
+    };
+    initVisitor();
+  }, [user]);
 
   React.useEffect(() => {
     if (!user) return;
@@ -65,7 +140,7 @@ export default function VisitorTerminal() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setLiveCount(snapshot.size);
     }, (err) => {
-      console.error("Firestore Error:", err);
+      handleFirestoreError(err, OperationType.LIST, 'logs');
     });
 
     return () => unsubscribe();
@@ -92,6 +167,15 @@ export default function VisitorTerminal() {
     }
   };
 
+  const parseNameFromEmail = (email: string) => {
+    if (!email) return "Visitor";
+    const namePart = email.split('@')[0];
+    return namePart
+      .split('.')
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  };
+
   const identifyVisitor = async (data: { rfid_tag?: string; email?: string }) => {
     if (!user) {
       setError("System Offline: Please Login");
@@ -112,18 +196,57 @@ export default function VisitorTerminal() {
       }
 
       const snapshot = await getDocs(q);
-      if (snapshot.empty) throw new Error("IDENTITY NOT RECOGNIZED");
+      
+      let role = '';
+      if (data.email === 'alexis.castro@neu.edu.ph') role = 'student';
+      if (data.email === 'ajcken319@gmail.com') role = 'test';
+      if (data.email === 'jcesperanza@neu.edu.ph') role = 'faculty';
+
+      if (snapshot.empty) {
+        // If not found in database but we have an email, derive name from email
+        if (data.email && data.email.endsWith('@neu.edu.ph')) {
+          const derivedName = parseNameFromEmail(data.email);
+          setVisitor({
+            name: derivedName,
+            email: data.email,
+            rfid_tag: 'N/A',
+            college: '',
+            role: role
+          });
+          setStep('profile');
+          return;
+        }
+        throw new Error("IDENTITY NOT RECOGNIZED");
+      }
       
       const visitorDoc = snapshot.docs[0];
       const visitorData = { id: visitorDoc.id, ...(visitorDoc.data() as object) };
       
+      // Use email-derived name if the database name is missing or generic
+      // @ts-ignore
+      if (visitorData.email && (!visitorData.name || visitorData.name === 'New Student')) {
+        // @ts-ignore
+        visitorData.name = parseNameFromEmail(visitorData.email);
+      }
+      
       // @ts-ignore
       if (visitorData.is_blocked) throw new Error("Access Denied: Blocked");
       
+      // Override role if specified
+      // @ts-ignore
+      if (role !== '' || !visitorData.role) {
+         // @ts-ignore
+         visitorData.role = role || visitorData.role || '';
+      }
+
       setVisitor(visitorData);
-      setStep('purpose');
+      setStep('profile');
     } catch (err: any) {
-      setError(err.message);
+      if (err.message === "IDENTITY NOT RECOGNIZED" || err.message.includes("Access Denied")) {
+        setError(err.message);
+      } else {
+        handleFirestoreError(err, OperationType.GET, 'visitors');
+      }
       setTimeout(() => setError(null), 3000);
     }
   };
@@ -148,17 +271,52 @@ export default function VisitorTerminal() {
         date: format(new Date(), 'PP') 
       }));
       setStep('welcome');
-      setTimeout(() => { setStep('idle'); setVisitor(null); }, 5000);
+      // Automatically sign out after 3 seconds to return to landing page
+      setTimeout(async () => {
+        try {
+          await signOut(auth);
+          setVisitor(null);
+          setStep('idle');
+        } catch (err) {
+          console.error("Auto-logout failed:", err);
+        }
+      }, 3000);
     } catch (err: any) {
-      setError("Log Failed: " + err.message);
+      handleFirestoreError(err, OperationType.CREATE, 'logs');
     }
   };
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#050505]">
-      <div className="flex flex-col items-center gap-6">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--bg-primary)]">
+      <div className="atmosphere" />
+      <div className="flex flex-col items-center gap-6 z-10">
+        <img src="https://neu.edu.ph/main/img/neu.png" alt="NEU Logo" className="w-24 h-24 mb-4 animate-pulse" />
         <div className="w-16 h-16 border-4 border-[var(--neon-blue)]/20 border-t-[var(--neon-blue)] rounded-full animate-spin" />
         <div className="text-[var(--neon-blue)] font-black tracking-[0.4em] animate-pulse text-xs">ESTABLISHING SECURE LINK...</div>
+      </div>
+    </div>
+  );
+
+  if (!user) return (
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="atmosphere" />
+      <div className="w-full max-w-md text-center z-10">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="stat-card p-12 rounded-[3rem] border-zinc-200 dark:border-zinc-800">
+          <img src="https://neu.edu.ph/main/img/neu.png" alt="NEU Logo" className="w-32 h-32 mx-auto mb-8" />
+          <h1 className="text-3xl font-black mb-4 glow-text">NEU LIBRARY</h1>
+          <p className="text-zinc-500 text-xs font-bold uppercase tracking-[0.2em] mb-12">Institutional Login Required</p>
+          
+          <button 
+            onClick={login}
+            className="w-full bg-[var(--neon-blue)] text-white dark:text-black py-5 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 transition-all shadow-[0_0_20px_rgba(0,242,255,0.3)]"
+          >
+            <LogIn size={20} /> Sign in with @neu.edu.ph
+          </button>
+          
+          <p className="mt-8 text-[9px] text-zinc-500 uppercase font-black tracking-widest">
+            New Era University • Library Monitoring System
+          </p>
+        </motion.div>
       </div>
     </div>
   );
@@ -171,101 +329,84 @@ export default function VisitorTerminal() {
         <AnimatePresence mode="wait">
           {step === 'idle' && (
             <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <div className="mb-8 flex justify-center items-center gap-4">
+              <div className="mb-8 flex flex-col items-center gap-6">
+                <img src="https://neu.edu.ph/main/img/neu.png" alt="NEU Logo" className="w-24 h-24" />
                 <div className="stat-card px-4 py-2 rounded-full flex items-center gap-2 text-[var(--neon-blue)] border-zinc-200 dark:border-zinc-800">
                   <Users size={16} />
                   <span className="text-[10px] font-black uppercase tracking-widest">Today's Visitors: {liveCount}</span>
                 </div>
               </div>
               
-              <h1 className="text-4xl md:text-5xl font-black mb-12 glow-text">NEU LIBRARY SYSTEM</h1>
+              <h1 className="text-4xl md:text-5xl font-black mb-12 glow-text">LIBRARY SYSTEM</h1>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-                {/* RFID / Student Number Input */}
-                <div className="stat-card p-8 rounded-3xl flex flex-col items-center gap-6 border-zinc-200 dark:border-zinc-800">
-                  <div className="pulse-ring w-24 h-24" onClick={() => {
-                    const input = document.getElementById('manualRfid') as HTMLInputElement;
-                    identifyVisitor({ rfid_tag: input.value || '26-00001-000' });
-                  }}>
-                    <CreditCard size={32} className="text-[var(--neon-blue)]" />
-                  </div>
-                  <div className="w-full space-y-4">
-                    <h3 className="text-[10px] font-bold text-[var(--text-secondary)] tracking-widest uppercase">RFID / STUDENT NUMBER</h3>
-                    <div className="relative">
-                      <input 
-                        type="text" 
-                        id="manualRfid"
-                        placeholder="00-00000-000"
-                        maxLength={12}
-                        className="w-full bg-[var(--input-bg)] border border-zinc-300 dark:border-zinc-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-center tracking-widest text-[var(--text-primary)]"
-                        onChange={(e) => {
-                          let val = e.target.value.replace(/\D/g, '');
-                          if (val.length > 2) val = val.slice(0, 2) + '-' + val.slice(2);
-                          if (val.length > 8) val = val.slice(0, 8) + '-' + val.slice(8);
-                          e.target.value = val.slice(0, 12);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            identifyVisitor({ rfid_tag: (e.target as HTMLInputElement).value });
-                          }
-                        }}
-                      />
-                    </div>
-                    <button 
-                      onClick={() => {
-                        const val = (document.getElementById('manualRfid') as HTMLInputElement).value;
-                        if (val) identifyVisitor({ rfid_tag: val });
-                      }}
-                      className="w-full bg-[var(--neon-blue)]/10 text-[var(--neon-blue)] border border-[var(--neon-blue)]/20 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-[var(--neon-blue)] hover:text-black transition-all"
-                    >
-                      Identify ID
-                    </button>
-                  </div>
-                </div>
-
-                {/* Email Input */}
-                <div className="stat-card p-8 rounded-3xl flex flex-col items-center gap-6 border-zinc-200 dark:border-zinc-800">
-                  <div 
-                    className="w-24 h-24 rounded-full border-2 border-zinc-300 dark:border-zinc-800 flex items-center justify-center hover:border-[var(--neon-green)] hover:text-[var(--neon-green)] transition-all cursor-pointer group"
-                    onClick={() => identifyVisitor({ email: 'juan.delacruz@neu.edu.ph' })}
-                  >
-                    <Mail size={32} className="group-hover:scale-110 transition-transform text-[var(--neon-green)]" />
-                  </div>
-                  <div className="w-full space-y-4">
-                    <h3 className="text-[10px] font-bold text-[var(--text-secondary)] tracking-widest uppercase">INSTITUTIONAL EMAIL</h3>
-                    <div className="relative">
-                      <input 
-                        type="email" 
-                        id="manualEmail"
-                        placeholder="ENTER EMAIL ADDRESS"
-                        className="w-full bg-[var(--input-bg)] border border-zinc-300 dark:border-zinc-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--neon-green)] text-center tracking-widest text-[var(--text-primary)]"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            identifyVisitor({ email: (e.target as HTMLInputElement).value });
-                          }
-                        }}
-                      />
-                    </div>
-                    <button 
-                      onClick={() => {
-                        const val = (document.getElementById('manualEmail') as HTMLInputElement).value;
-                        if (val) identifyVisitor({ email: val });
-                      }}
-                      className="w-full bg-[var(--neon-green)]/10 text-[var(--neon-green)] border border-[var(--neon-green)]/20 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-[var(--neon-green)] hover:text-black transition-all"
-                    >
-                      Identify Email
-                    </button>
-                  </div>
-                </div>
+              <div className="stat-card p-12 rounded-[3rem] border-zinc-200 dark:border-zinc-800">
+                <p className="text-zinc-500 text-xs font-bold uppercase tracking-[0.2em] mb-4">Authenticating Session...</p>
+                <div className="w-12 h-12 border-4 border-[var(--neon-blue)]/20 border-t-[var(--neon-blue)] rounded-full animate-spin mx-auto" />
               </div>
-
-              <p className="text-[var(--neon-green)] font-bold tracking-[0.3em] animate-pulse h-6">
-                {error ? <span className="text-[var(--neon-red)]">{error}</span> : "READY FOR INPUT"}
-              </p>
             </motion.div>
           )}
 
-          {step === 'purpose' && (
+          {step === 'profile' && visitor && (
+            <motion.div key="profile" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
+              <div className="stat-card p-8 rounded-[2.5rem] mb-8 border-zinc-200 dark:border-zinc-800">
+                <h3 className="text-sm font-bold mb-6 uppercase tracking-widest text-[var(--neon-blue)]">Complete Your Profile</h3>
+                
+                <div className="space-y-6 text-left">
+                  <div>
+                    <label className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest block mb-2">Select College / Office <span className="text-red-500">*</span></label>
+                    <select 
+                      value={visitor.college}
+                      onChange={(e) => setVisitor({ ...visitor, college: e.target.value })}
+                      className="w-full bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 rounded-xl px-4 py-3.5 text-sm font-black focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--neon-blue)] shadow-sm"
+                    >
+                      <option value="" className="text-zinc-400">-- SELECT COLLEGE / OFFICE --</option>
+                      {COLLEGES.map(c => <option key={c} value={c} className="text-[var(--text-primary)]">{c}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest block mb-2">Select Role <span className="text-red-500">*</span></label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {ROLES.map(r => (
+                        <button
+                          key={r}
+                          onClick={() => setVisitor({ ...visitor, role: r.toLowerCase() })}
+                          className={`px-4 py-4 rounded-xl text-[11px] font-black uppercase tracking-widest border-2 transition-all ${
+                            visitor.role === r.toLowerCase() 
+                              ? 'bg-[var(--neon-blue)] text-white dark:text-black border-[var(--neon-blue)] shadow-[0_0_20px_rgba(0,119,255,0.4)]' 
+                              : 'bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-[var(--neon-blue)] hover:text-[var(--neon-blue)]'
+                          }`}
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={() => {
+                      if (visitor.college && visitor.role) {
+                        setStep('purpose');
+                      } else {
+                        setError("Please select both College and Role");
+                        setTimeout(() => setError(null), 3000);
+                      }
+                    }}
+                    disabled={!visitor.college || !visitor.role}
+                    className={`w-full py-4 rounded-xl font-black uppercase tracking-widest mt-4 transition-all ${
+                      visitor.college && visitor.role
+                        ? 'bg-zinc-900 dark:bg-white text-white dark:text-black hover:scale-[1.02] active:scale-95'
+                        : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed'
+                    }`}
+                  >
+                    Continue to Purpose
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {step === 'purpose' && visitor && (
             <motion.div key="purpose" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
               <div className="stat-card p-8 rounded-[2.5rem] mb-8 border-zinc-200 dark:border-zinc-800">
                 <div className="flex items-center gap-4 mb-8 text-left">
@@ -274,7 +415,7 @@ export default function VisitorTerminal() {
                   </div>
                   <div>
                     <h2 className="text-xl font-bold uppercase text-[var(--text-primary)]">{visitor.name}</h2>
-                    <p className="text-[var(--text-secondary)] text-[10px] uppercase tracking-widest">{visitor.college}</p>
+                    <p className="text-[var(--neon-blue)] text-[11px] font-black uppercase tracking-widest">{visitor.college}</p>
                   </div>
                 </div>
                 
@@ -328,19 +469,6 @@ export default function VisitorTerminal() {
         </AnimatePresence>
       </div>
 
-      {/* System Status / Login */}
-      <div className="fixed bottom-4 left-4 z-50 flex gap-2">
-        <button 
-          onClick={handleAuthAction}
-          className="p-3 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-[var(--neon-blue)] transition-all shadow-lg flex items-center gap-2 px-4 border border-zinc-200 dark:border-zinc-700"
-          title={user && !user.isAnonymous ? "Switch to Guest Mode" : "System Login"}
-        >
-          {user && !user.isAnonymous ? <LogOut size={16} /> : <LogIn size={16} />}
-          <span className="text-[10px] font-bold uppercase tracking-widest">
-            {user ? (user.isAnonymous ? "Guest Mode" : "Librarian Mode") : "System Offline"}
-          </span>
-        </button>
-      </div>
     </div>
   );
 }
