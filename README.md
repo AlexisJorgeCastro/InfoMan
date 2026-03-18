@@ -1,4 +1,4 @@
-# NEU Library Visitor Log Firebase
+# NEU Library Visitor Log
 
 A comprehensive visitor monitoring system for NEU Library featuring RFID/Google login, real-time statistics, and automated PDF reporting.
 
