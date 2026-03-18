@@ -5,7 +5,6 @@ A comprehensive visitor monitoring system for NEU Library featuring RFID/Google 
 ### Access the Application
 
 - **Production Version:** [https://ais-pre-elk5n2q2hqz4xcpevyagvx-149337140065.asia-east1.run.app](https://ais-pre-elk5n2q2hqz4xcpevyagvx-149337140065.asia-east1.run.app)
-- **Development Version:** [https://ais-dev-elk5n2q2hqz4xcpevyagvx-149337140065.asia-east1.run.app](https://ais-dev-elk5n2q2hqz4xcpevyagvx-149337140065.asia-east1.run.app)
 
 ## Features
 
