@@ -2,6 +2,9 @@
 
 A comprehensive visitor monitoring system for NEU Library featuring Google login, real-time statistics, and automated PDF reporting.
 
+### Live Application
+[https://ais-pre-elk5n2q2hqz4xcpevyagvx-149337140065.asia-east1.run.app](https://ais-pre-elk5n2q2hqz4xcpevyagvx-149337140065.asia-east1.run.app)
+
 ## Features
 
 - **Visitor Terminal:** Easy check-in using Student Number or Institutional Email.
