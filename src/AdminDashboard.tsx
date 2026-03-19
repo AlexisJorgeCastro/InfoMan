@@ -509,11 +509,11 @@ export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: 
         <div className="stat-card p-4 rounded-2xl mb-8 flex gap-4 items-center animate-in slide-in-from-top-2 border-2 border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900/50 shadow-sm">
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-widest">START:</span>
-            <input type="date" className="bg-white dark:bg-zinc-950 text-xs font-bold border-2 border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)]" onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))} />
+            <input type="date" className="bg-zinc-100 text-xs font-bold border-2 border-zinc-300 rounded-lg p-2 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)]" onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))} />
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-widest">END:</span>
-            <input type="date" className="bg-white dark:bg-zinc-950 text-xs font-bold border-2 border-zinc-200 dark:border-zinc-800 rounded-lg p-2 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)]" onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))} />
+            <input type="date" className="bg-zinc-100 text-xs font-bold border-2 border-zinc-300 rounded-lg p-2 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)]" onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))} />
           </div>
           <button onClick={fetchData} className="bg-[var(--neon-blue)] text-white dark:text-black text-[10px] font-black px-6 py-2 rounded-lg uppercase tracking-widest hover:scale-105 transition-transform shadow-md">APPLY RANGE</button>
         </div>
@@ -531,7 +531,7 @@ export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: 
           <select 
             value={filters.purpose}
             onChange={(e) => setFilters(prev => ({ ...prev, purpose: e.target.value }))}
-            className="bg-zinc-50 dark:bg-zinc-700 border-2 border-zinc-200 dark:border-zinc-600 rounded-xl px-4 py-2.5 text-[11px] font-black focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--text-primary)] shadow-sm transition-all"
+            className="bg-zinc-100 border-2 border-zinc-300 rounded-xl px-4 py-2.5 text-[11px] font-black focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-zinc-900 shadow-sm transition-all"
           >
             <option value="all">ALL PURPOSES</option>
             <option value="Reading books">READING BOOKS</option>
@@ -546,10 +546,10 @@ export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: 
           <select 
             value={filters.college}
             onChange={(e) => setFilters(prev => ({ ...prev, college: e.target.value }))}
-            className="bg-zinc-50 dark:bg-zinc-700 border-2 border-zinc-200 dark:border-zinc-600 rounded-xl px-4 py-2.5 text-[11px] font-black focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--text-primary)] shadow-sm transition-all"
+            className="bg-zinc-100 border-2 border-zinc-300 rounded-xl px-4 py-2.5 text-[11px] font-black focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-zinc-900 shadow-sm transition-all"
           >
             <option value="all">ALL COLLEGES</option>
-            {COLLEGES.map(c => <option key={c} value={c}>{c.toUpperCase()}</option>)}
+            {COLLEGES.map(c => <option key={c} value={c} className="text-zinc-900">{c.toUpperCase()}</option>)}
           </select>
         </div>
 
@@ -558,14 +558,12 @@ export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: 
           <select 
             value={filters.role}
             onChange={(e) => setFilters(prev => ({ ...prev, role: e.target.value }))}
-            className="bg-zinc-50 dark:bg-zinc-700 border-2 border-zinc-200 dark:border-zinc-600 rounded-xl px-4 py-2.5 text-[11px] font-black focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--text-primary)] shadow-sm transition-all"
+            className="bg-zinc-100 border-2 border-zinc-300 rounded-xl px-4 py-2.5 text-[11px] font-black focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-zinc-900 shadow-sm transition-all"
           >
             <option value="all">ALL TYPES</option>
             <option value="student">STUDENTS</option>
             <option value="faculty">FACULTY</option>
             <option value="staff">STAFF</option>
-            <option value="admin">ADMINS</option>
-            <option value="test">TEST ACCOUNTS</option>
             <option value="employee">ALL EMPLOYEES (FACULTY/STAFF)</option>
           </select>
         </div>

@@ -68,7 +68,7 @@ const COLLEGES = [
   "External / Guest"
 ];
 
-const ROLES = ['Student', 'Faculty', 'Staff', 'Admin', 'Test'];
+const ROLES = ['Student', 'Faculty', 'Staff'];
 
 export default function VisitorTerminal({ user }: { user: any }) {
   const [step, setStep] = React.useState('idle');
@@ -357,10 +357,10 @@ export default function VisitorTerminal({ user }: { user: any }) {
                     <select 
                       value={visitor.college}
                       onChange={(e) => setVisitor({ ...visitor, college: e.target.value })}
-                      className="w-full bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 rounded-xl px-4 py-3.5 text-sm font-black focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--neon-blue)] shadow-sm"
+                      className="w-full bg-zinc-100 border-2 border-zinc-300 rounded-xl px-4 py-3.5 text-sm font-black focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-zinc-900 shadow-sm"
                     >
-                      <option value="" className="text-zinc-400">-- SELECT COLLEGE / OFFICE --</option>
-                      {COLLEGES.map(c => <option key={c} value={c} className="text-[var(--text-primary)]">{c}</option>)}
+                      <option value="" className="text-zinc-500">-- SELECT COLLEGE / OFFICE --</option>
+                      {COLLEGES.map(c => <option key={c} value={c} className="text-zinc-900">{c}</option>)}
                     </select>
                   </div>
 
@@ -374,7 +374,7 @@ export default function VisitorTerminal({ user }: { user: any }) {
                           className={`px-4 py-4 rounded-xl text-[11px] font-black uppercase tracking-widest border-2 transition-all ${
                             visitor.role === r.toLowerCase() 
                               ? 'bg-[var(--neon-blue)] text-white dark:text-black border-[var(--neon-blue)] shadow-[0_0_20px_rgba(0,119,255,0.4)]' 
-                              : 'bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-[var(--neon-blue)] hover:text-[var(--neon-blue)]'
+                              : 'bg-zinc-100 border-zinc-300 text-zinc-600 hover:border-[var(--neon-blue)] hover:text-[var(--neon-blue)]'
                           }`}
                         >
                           {r}
