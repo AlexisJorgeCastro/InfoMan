@@ -89,6 +89,7 @@ export default function VisitorTerminal({ user }: { user: any }) {
           if (user.email === 'alexis.castro@neu.edu.ph') role = 'student';
           if (user.email === 'ajcken319@gmail.com') role = 'test';
           if (user.email === 'jcesperanza@neu.edu.ph') role = 'faculty';
+          if (user.email === 'chynna.cardona@neu.edu.ph') role = 'faculty';
 
           if (!snapshot.empty) {
             const visitorDoc = snapshot.docs[0];
@@ -169,6 +170,7 @@ export default function VisitorTerminal({ user }: { user: any }) {
 
   const parseNameFromEmail = (email: string) => {
     if (!email) return "Visitor";
+    if (email === 'jcesperanza@neu.edu.ph') return "Jeremy Esperanza";
     const namePart = email.split('@')[0];
     return namePart
       .split('.')
@@ -201,6 +203,7 @@ export default function VisitorTerminal({ user }: { user: any }) {
       if (data.email === 'alexis.castro@neu.edu.ph') role = 'student';
       if (data.email === 'ajcken319@gmail.com') role = 'test';
       if (data.email === 'jcesperanza@neu.edu.ph') role = 'faculty';
+      if (data.email === 'chynna.cardona@neu.edu.ph') role = 'faculty';
 
       if (snapshot.empty) {
         // If not found in database but we have an email, derive name from email

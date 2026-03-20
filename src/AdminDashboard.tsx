@@ -463,7 +463,9 @@ export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: 
           <img src="https://neu.edu.ph/main/img/neu.png" alt="NEU Logo" className="w-16 h-16" />
           <div>
             <h1 className="text-3xl font-black glow-text">ADMIN DASHBOARD</h1>
-            <p className="text-[var(--text-secondary)] text-xs mt-1 tracking-widest uppercase">New Era University • Library System</p>
+            <p className="text-[var(--text-secondary)] text-[10px] font-black uppercase tracking-[0.2em] mt-1">
+              Welcome, {user?.displayName || user?.email || 'Admin'} • NEU Library System
+            </p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">

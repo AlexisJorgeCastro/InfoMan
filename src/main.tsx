@@ -63,7 +63,7 @@ function App() {
 
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       if (u) {
-        const adminEmails = ["alexis.castro@neu.edu.ph", "jcesperanza@neu.edu.ph", "ajcken319@gmail.com"];
+        const adminEmails = ["alexis.castro@neu.edu.ph", "jcesperanza@neu.edu.ph", "ajcken319@gmail.com", "chynna.cardona@neu.edu.ph"];
         const isUAdmin = adminEmails.includes(u.email || "");
 
         // Enforce @neu.edu.ph domain for non-admins
@@ -73,6 +73,11 @@ function App() {
           setIsAdmin(false);
           setLoading(false);
           return;
+        }
+
+        // Name override for professor
+        if (u.email === 'jcesperanza@neu.edu.ph') {
+          Object.defineProperty(u, 'displayName', { value: 'Jeremy Esperanza', configurable: true });
         }
 
         setUser(u);
@@ -123,7 +128,7 @@ function App() {
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
-      if (result.user.email?.endsWith('@neu.edu.ph') || ["ajcken319@gmail.com", "alexis.castro@neu.edu.ph", "jcesperanza@neu.edu.ph"].includes(result.user.email || "")) {
+      if (result.user.email?.endsWith('@neu.edu.ph') || ["ajcken319@gmail.com", "alexis.castro@neu.edu.ph", "jcesperanza@neu.edu.ph", "chynna.cardona@neu.edu.ph"].includes(result.user.email || "")) {
         setView(targetView);
         setHasSelectedView(true);
       }
