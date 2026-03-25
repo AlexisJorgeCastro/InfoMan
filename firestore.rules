@@ -7,7 +7,6 @@
 // Fields:
 //   - name: string (required)
 //   - email: string (required, email format)
-//   - rfid_tag: string (required)
 //   - college: string (optional)
 //   - role: string (optional, enum: student, faculty, staff)
 //   - created_at: timestamp (optional)
@@ -42,10 +41,9 @@ service cloud.firestore {
     }
 
     function isValidVisitor(data) {
-      return data.keys().hasAll(['name', 'email', 'rfid_tag', 'role']) &&
+      return data.keys().hasAll(['name', 'email', 'role']) &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
-             data.rfid_tag is string && data.rfid_tag.size() > 0 &&
              data.role is string && data.role in ['student', 'faculty', 'staff', 'visitor', 'test'];
     }
 

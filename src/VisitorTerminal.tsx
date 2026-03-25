@@ -70,7 +70,7 @@ const COLLEGES = [
   "External / Guest"
 ];
 
-const ROLES = ['Student', 'Faculty', 'Staff'];
+const ROLES = ['Student', 'Faculty', 'Staff', 'Visitor'];
 
 export default function VisitorTerminal({ user, theme, toggleTheme }: { user: any, theme: string, toggleTheme: () => void }) {
   const [step, setStep] = React.useState('idle');
@@ -182,75 +182,6 @@ export default function VisitorTerminal({ user, theme, toggleTheme }: { user: an
       .join(' ');
   };
 
-  const identifyVisitor = async (data: { email?: string }) => {
-    if (!user) {
-      setError("System Offline: Please Login");
-      return;
-    }
-
-    try {
-      const q = query(collection(db, 'visitors'), where('email', '==', data.email));
-      const snapshot = await getDocs(q);
-      
-      let role = '';
-      if (data.email === 'alexis.castro@neu.edu.ph') role = 'student';
-      if (data.email === 'ajcken319@gmail.com') role = 'test';
-      if (data.email === 'jcesperanza@neu.edu.ph') role = 'faculty';
-      if (data.email === 'chynna.cardona@neu.edu.ph') role = 'faculty';
-
-      if (snapshot.empty) {
-        // If not found in database but we have an email, derive name from email
-        if (data.email && data.email.endsWith('@neu.edu.ph')) {
-          const derivedName = parseNameFromEmail(data.email);
-          const newVisitor = {
-            name: derivedName,
-            email: data.email,
-            college: '',
-            role: role || 'student',
-            created_at: Timestamp.now()
-          };
-          const docRef = await addDoc(collection(db, 'visitors'), newVisitor);
-          setVisitor({ id: docRef.id, ...newVisitor });
-          setStep('profile');
-          return;
-        }
-        throw new Error("IDENTITY NOT RECOGNIZED");
-      }
-      
-      const visitorDoc = snapshot.docs[0];
-      const visitorData = { id: visitorDoc.id, ...(visitorDoc.data() as any) };
-      
-      // Use email-derived name if the database name is missing or generic
-      // @ts-ignore
-      if (visitorData.email && (!visitorData.name || visitorData.name === 'New Student')) {
-        // @ts-ignore
-        visitorData.name = parseNameFromEmail(visitorData.email);
-      }
-      
-      // Override role if specified
-      // @ts-ignore
-      if (role !== '' || !visitorData.role) {
-         // @ts-ignore
-         visitorData.role = role || visitorData.role || '';
-      }
-
-      setVisitor(visitorData);
-      
-      if (visitorData.college && visitorData.role) {
-        setStep('purpose');
-      } else {
-        setStep('profile');
-      }
-    } catch (err: any) {
-      if (err.message === "IDENTITY NOT RECOGNIZED" || err.message.includes("Access Denied")) {
-        setError(err.message);
-      } else {
-        handleFirestoreError(err, OperationType.GET, 'visitors');
-      }
-      setTimeout(() => setError(null), 3000);
-    }
-  };
-
   const saveProfile = async () => {
     if (!visitor.college || !visitor.role) return;
     
@@ -275,7 +206,8 @@ export default function VisitorTerminal({ user, theme, toggleTheme }: { user: an
         setVisitor({ ...visitor, id: docRef.id });
       }
       setStep('purpose');
-    } catch (err) {
+    } catch (err: any) {
+      setError("Failed to save profile: " + err.message);
       handleFirestoreError(err, OperationType.WRITE, 'visitors');
     }
   };
@@ -310,6 +242,7 @@ export default function VisitorTerminal({ user, theme, toggleTheme }: { user: an
         }
       }, 3000);
     } catch (err: any) {
+      setError("Failed to submit log: " + err.message);
       handleFirestoreError(err, OperationType.CREATE, 'logs');
     }
   };

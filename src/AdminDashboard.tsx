@@ -70,7 +70,8 @@ const COLLEGES = [
   "College of Engineering",
   "College of Business Administration",
   "College of Nursing",
-  "College of Criminology"
+  "College of Criminology",
+  "External / Guest"
 ];
 
 export default function AdminDashboard({ user, isAdmin, theme, toggleTheme }: { user: any, isAdmin: boolean, theme: string, toggleTheme: () => void }) {
