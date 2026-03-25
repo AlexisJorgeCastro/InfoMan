@@ -10,7 +10,6 @@
 //   - rfid_tag: string (required)
 //   - college: string (optional)
 //   - role: string (optional, enum: student, faculty, staff)
-//   - is_blocked: boolean (optional)
 //   - created_at: timestamp (optional)
 //
 // Collection: logs
@@ -43,10 +42,11 @@ service cloud.firestore {
     }
 
     function isValidVisitor(data) {
-      return data.keys().hasAll(['name', 'email', 'rfid_tag']) &&
+      return data.keys().hasAll(['name', 'email', 'rfid_tag', 'role']) &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
-             data.rfid_tag is string && data.rfid_tag.size() > 0;
+             data.rfid_tag is string && data.rfid_tag.size() > 0 &&
+             data.role is string && data.role in ['student', 'faculty', 'staff', 'visitor', 'test'];
     }
 
     function isValidLog(data) {
@@ -73,7 +73,21 @@ service cloud.firestore {
     match /visitors/{visitorId} {
       // Allow authenticated users to read visitors (for identification in the terminal)
       allow read: if isAuthenticated();
-      allow create, update: if isAdmin() && isValidVisitor(request.resource.data);
+      
+      // Allow admins to create/update any visitor
+      // Allow non-admins to create their own record if they sign in via email
+      allow create: if (isAdmin() && isValidVisitor(request.resource.data)) || 
+                    (isAuthenticated() && 
+                     request.resource.data.email == request.auth.token.email && 
+                     request.resource.data.role != 'admin' &&
+                     isValidVisitor(request.resource.data));
+                     
+      allow update: if (isAdmin() && isValidVisitor(request.resource.data)) ||
+                    (isAuthenticated() && 
+                     resource.data.email == request.auth.token.email && 
+                     request.resource.data.email == resource.data.email &&
+                     request.resource.data.role != 'admin' &&
+                     isValidVisitor(request.resource.data));
       allow delete: if isAdmin();
     }
 

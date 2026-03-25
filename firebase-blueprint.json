@@ -10,7 +10,6 @@
         "rfid_tag": { "type": "string", "description": "RFID tag ID or Student Number." },
         "college": { "type": "string", "description": "College or department." },
         "role": { "type": "string", "enum": ["student", "faculty", "staff"], "description": "Role in the university." },
-        "is_blocked": { "type": "boolean", "description": "Whether the visitor is blocked from entry." },
         "created_at": { "type": "string", "format": "date-time", "description": "When the visitor was registered." }
       },
       "required": ["name", "email", "rfid_tag"]

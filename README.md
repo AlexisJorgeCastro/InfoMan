@@ -1,17 +1,14 @@
 # NEU Library Visitor Log
 
-A comprehensive visitor monitoring system for NEU Library featuring Google login, real-time statistics, and automated PDF reporting.
-
-### Live Application
-[https://ais-pre-elk5n2q2hqz4xcpevyagvx-149337140065.asia-east1.run.app](https://ais-pre-elk5n2q2hqz4xcpevyagvx-149337140065.asia-east1.run.app)
-
 ## Features
 
-- **Visitor Terminal:** Easy check-in using Student Number or Institutional Email.
-- **Admin Dashboard:** Real-time monitoring of library traffic and visitor statistics.
-- **Automated Reporting:** Generate and download PDF reports of visitor logs.
-- **Security:** Role-based access control for Librarians and Guest modes.
-- **Theme Support:** Modern UI with Light and Dark mode support.
+- **Visitor Terminal:** Easy check-in using Institutional Email.
+- **One-time Registration:** Users only need to register their college and role once; the system remembers them for future visits.
+- **Admin Dashboard:** Real-time monitoring of library traffic, visitor statistics, and activity logs.
+- **Automated Reporting:** Generate and download PDF reports of visitor logs for administrative review.
+- **Security:** Role-based access control (RBAC) with updated Firestore Security Rules for data protection.
+- **Theme Support:** Modern, responsive UI with both Light and Dark mode support.
+- **Professor Name Override:** Special handling for faculty members (e.g., Jeremias Esperanza).
 
 ## Tech Stack
 
@@ -19,3 +16,4 @@ A comprehensive visitor monitoring system for NEU Library featuring Google login
 - **Backend/Database:** Firebase Firestore & Authentication.
 - **Charts:** Recharts for data visualization.
 - **Icons:** Lucide-React.
+- **PDF Generation:** jsPDF and autoTable.

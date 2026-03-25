@@ -77,7 +77,7 @@ function App() {
 
         // Name override for professor
         if (u.email === 'jcesperanza@neu.edu.ph') {
-          Object.defineProperty(u, 'displayName', { value: 'Jeremy Esperanza', configurable: true });
+          Object.defineProperty(u, 'displayName', { value: 'Jeremias Esperanza', configurable: true });
         }
 
         setUser(u);

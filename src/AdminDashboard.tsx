@@ -19,7 +19,9 @@ import {
   doc,
   getDoc,
   addDoc,
-  updateDoc
+  updateDoc,
+  documentId,
+  getCountFromServer
 } from 'firebase/firestore';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, signInAnonymously } from 'firebase/auth';
 import { auth, db } from './firebase';
@@ -86,13 +88,14 @@ export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: 
     middleName: '', 
     lastName: '', 
     email: '', 
-    rfid_tag: '', 
     college: COLLEGES[0] 
   });
   const [registering, setRegistering] = React.useState(false);
   const [registrationPreview, setRegistrationPreview] = React.useState<any>(null);
   const [showResetConfirm, setShowResetConfirm] = React.useState(false);
   const [notification, setNotification] = React.useState<{message: string, type: 'success' | 'error'} | null>(null);
+  const firstLoad = React.useRef(true);
+  const visitorCache = React.useRef<Map<string, any>>(new Map());
 
   React.useEffect(() => {
     if (notification) {
@@ -106,129 +109,6 @@ export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: 
     setNewStudent(prev => ({ ...prev, email }));
   }, [newStudent.firstName, newStudent.lastName]);
 
-  const generateStudentId = async () => {
-    const year = new Date().getFullYear().toString().slice(-2);
-    const q = query(collection(db, 'visitors'));
-    const snap = await getDocs(q);
-    const count = snap.size + 1;
-    const sequence = count.toString().padStart(5, '0');
-    return `${year}-${sequence}-000`;
-  };
-
-  const fetchData = React.useCallback(async () => {
-    if (!isAdmin) return;
-    setLoading(true);
-
-    try {
-      const now = new Date();
-      const todayStart = startOfDay(now);
-      let logQuery;
-
-      // Optimize query based on period to reduce initial data load
-      if (period === 'today') {
-        logQuery = query(collection(db, 'logs'), where('timestamp', '>=', Timestamp.fromDate(todayStart)), orderBy('timestamp', 'desc'));
-      } else if (period === 'week') {
-        logQuery = query(collection(db, 'logs'), where('timestamp', '>=', Timestamp.fromDate(subDays(todayStart, 7))), orderBy('timestamp', 'desc'));
-      } else if (period === 'month') {
-        logQuery = query(collection(db, 'logs'), where('timestamp', '>=', Timestamp.fromDate(subDays(todayStart, 30))), orderBy('timestamp', 'desc'));
-      } else if (period === 'custom' && dateRange.start && dateRange.end) {
-        const start = new Date(dateRange.start);
-        const end = new Date(dateRange.end);
-        end.setHours(23, 59, 59, 999);
-        logQuery = query(collection(db, 'logs'), where('timestamp', '>=', Timestamp.fromDate(start)), where('timestamp', '<=', Timestamp.fromDate(end)), orderBy('timestamp', 'desc'));
-      } else {
-        // Fallback or 'all' - limit to prevent massive data transfer
-        logQuery = query(collection(db, 'logs'), orderBy('timestamp', 'desc'), limit(500));
-      }
-      
-      const snapshot = await getDocs(logQuery);
-      const allLogs = snapshot.docs.map(doc => {
-        const data = doc.data() as any;
-        return {
-          id: doc.id,
-          ...data,
-          timestamp: (data.timestamp as Timestamp).toDate()
-        };
-      }) as any[];
-
-      // Fetch visitors only if needed (e.g. for students tab or to get current block status)
-      // For performance, we only fetch visitors present in the current logs unless on students tab
-      const visitorIds = [...new Set(allLogs.map(l => l.visitor_id))].filter(Boolean);
-      let currentVisitors: any[] = [];
-      
-      if (activeTab === 'students') {
-        const vSnap = await getDocs(collection(db, 'visitors'));
-        currentVisitors = vSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      } else if (visitorIds.length > 0) {
-        // Fetch only visitors in logs (batch in chunks of 30 for 'in' query - Firestore limit is 30)
-        const chunks = [];
-        for (let i = 0; i < visitorIds.length; i += 30) {
-          chunks.push(visitorIds.slice(i, i + 30));
-        }
-        const visitorPromises = chunks.map(chunk => 
-          getDocs(query(collection(db, 'visitors'), where('rfid_tag', 'in', chunk)))
-        );
-        const visitorSnaps = await Promise.all(visitorPromises);
-        currentVisitors = visitorSnaps.flatMap(snap => snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      }
-
-      setStudents(currentVisitors);
-
-      // Map current block status to logs
-      const logsWithCurrentStatus = allLogs.map(log => {
-        const student = currentVisitors.find(s => s.rfid_tag === log.visitor_id);
-        return {
-          ...log,
-          is_blocked: student ? student.is_blocked : log.is_blocked
-        };
-      });
-
-      // Apply additional filters (purpose, college, role)
-      let filteredLogs = logsWithCurrentStatus;
-      if (filters.purpose !== 'all') {
-        filteredLogs = filteredLogs.filter(l => l.purpose === filters.purpose);
-      }
-      if (filters.college !== 'all') {
-        filteredLogs = filteredLogs.filter(l => l.visitor_college === filters.college);
-      }
-      if (filters.role === 'employee') {
-        filteredLogs = filteredLogs.filter(l => l.visitor_role === 'faculty' || l.visitor_role === 'staff');
-      } else if (filters.role !== 'all') {
-        filteredLogs = filteredLogs.filter(l => l.visitor_role === filters.role);
-      }
-
-      setLogs(filteredLogs);
-
-      const purposeMap: any = {};
-      const collegeMap: any = {};
-      const dailyMap: any = {};
-      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-
-      filteredLogs.forEach(l => {
-        purposeMap[l.purpose] = (purposeMap[l.purpose] || 0) + 1;
-        collegeMap[l.visitor_college] = (collegeMap[l.visitor_college] || 0) + 1;
-        
-        const dateStr = format(l.timestamp, 'yyyy-MM-dd');
-        dailyMap[dateStr] = (dailyMap[dateStr] || 0) + 1;
-      });
-
-      const liveCount = allLogs.filter(l => l.timestamp >= oneHourAgo).length;
-
-      setStats({
-        total: filteredLogs.length,
-        liveCount,
-        byPurpose: Object.entries(purposeMap).map(([purpose, count]) => ({ purpose, count })),
-        byCollege: Object.entries(collegeMap).map(([college, count]) => ({ college, count })),
-        dailyStats: Object.entries(dailyMap).map(([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date))
-      });
-      
-      setLoading(false);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.LIST, 'logs/visitors');
-      setLoading(false);
-    }
-  }, [period, dateRange, isAdmin, filters, activeTab]);
-
   const logout = async () => {
     try {
       await signOut(auth);
@@ -237,46 +117,135 @@ export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: 
     }
   };
 
-  const toggleBlock = async (rfidTag: string, currentStatus: boolean) => {
-    try {
-      const q = query(collection(db, 'visitors'), where('rfid_tag', '==', rfidTag));
-      const snap = await getDocs(q);
-      
-      if (snap.empty) {
-        setNotification({ message: "Visitor record not found", type: 'error' });
-        return;
+  React.useEffect(() => {
+    if (!user || !isAdmin) return;
+    if (firstLoad.current) setLoading(true);
+
+    const now = new Date();
+    const todayStart = startOfDay(now);
+    let logQuery;
+
+    if (period === 'today') {
+      logQuery = query(collection(db, 'logs'), where('timestamp', '>=', Timestamp.fromDate(todayStart)), orderBy('timestamp', 'desc'));
+    } else if (period === 'week') {
+      logQuery = query(collection(db, 'logs'), where('timestamp', '>=', Timestamp.fromDate(subDays(todayStart, 7))), orderBy('timestamp', 'desc'));
+    } else if (period === 'month') {
+      logQuery = query(collection(db, 'logs'), where('timestamp', '>=', Timestamp.fromDate(subDays(todayStart, 30))), orderBy('timestamp', 'desc'));
+    } else if (period === 'custom' && dateRange.start && dateRange.end) {
+      const start = new Date(dateRange.start);
+      const end = new Date(dateRange.end);
+      end.setHours(23, 59, 59, 999);
+      logQuery = query(collection(db, 'logs'), where('timestamp', '>=', Timestamp.fromDate(start)), where('timestamp', '<=', Timestamp.fromDate(end)), orderBy('timestamp', 'desc'));
+    } else {
+      logQuery = query(collection(db, 'logs'), orderBy('timestamp', 'desc'), limit(500));
+    }
+
+    const unsubscribe = onSnapshot(logQuery, async (snapshot) => {
+      try {
+        const allLogs = snapshot.docs.map(doc => {
+          const data = doc.data() as any;
+          return {
+            id: doc.id,
+            ...data,
+            timestamp: (data.timestamp as Timestamp).toDate()
+          };
+        }) as any[];
+
+        const visitorIds = [...new Set(allLogs.map(l => l.visitor_id))].filter(Boolean);
+        const missingIds = visitorIds.filter(id => !visitorCache.current.has(id));
+        
+        if (missingIds.length > 0) {
+          const chunks = [];
+          for (let i = 0; i < missingIds.length; i += 30) {
+            chunks.push(missingIds.slice(i, i + 30));
+          }
+          const visitorPromises = chunks.map(chunk => {
+            const validDocIds = chunk.filter(id => id && id !== 'N/A' && !id.includes('/'));
+            const queries = [];
+            if (validDocIds.length > 0) {
+              queries.push(getDocs(query(collection(db, 'visitors'), where(documentId(), 'in', validDocIds))));
+            }
+            return Promise.all(queries);
+          });
+          const visitorSnapPairs = await Promise.all(visitorPromises);
+          visitorSnapPairs.forEach(pair => 
+            pair.forEach(snap => snap.docs.forEach(doc => {
+              const vData = { id: doc.id, ...(doc.data() as any) };
+              visitorCache.current.set(vData.id, vData);
+            }))
+          );
+        }
+
+        const currentVisitors = visitorIds.map(id => visitorCache.current.get(id)).filter(Boolean);
+        setStudents(currentVisitors);
+
+        const logsWithCurrentStatus = allLogs.map(log => {
+          return {
+            ...log
+          };
+        });
+
+        let filteredLogs = logsWithCurrentStatus;
+        if (filters.purpose !== 'all') filteredLogs = filteredLogs.filter(l => l.purpose === filters.purpose);
+        if (filters.college !== 'all') filteredLogs = filteredLogs.filter(l => l.visitor_college === filters.college);
+        if (filters.role === 'employee') {
+          filteredLogs = filteredLogs.filter(l => l.visitor_role === 'faculty' || l.visitor_role === 'staff');
+        } else if (filters.role !== 'all') {
+          filteredLogs = filteredLogs.filter(l => l.visitor_role === filters.role);
+        }
+
+        setLogs(filteredLogs);
+
+        const purposeMap: any = {};
+        const collegeMap: any = {};
+        const dailyMap: any = {};
+        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+        filteredLogs.forEach(l => {
+          purposeMap[l.purpose] = (purposeMap[l.purpose] || 0) + 1;
+          collegeMap[l.visitor_college] = (collegeMap[l.visitor_college] || 0) + 1;
+          const dateStr = format(l.timestamp, 'yyyy-MM-dd');
+          dailyMap[dateStr] = (dailyMap[dateStr] || 0) + 1;
+        });
+
+        const liveCount = allLogs.filter(l => l.timestamp >= oneHourAgo).length;
+
+        setStats({
+          total: filteredLogs.length,
+          liveCount,
+          byPurpose: Object.entries(purposeMap).map(([purpose, count]) => ({ purpose, count })),
+          byCollege: Object.entries(collegeMap).map(([college, count]) => ({ college, count })),
+          dailyStats: Object.entries(dailyMap).map(([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date))
+        });
+
+        setLoading(false);
+        firstLoad.current = false;
+      } catch (err) {
+        handleFirestoreError(err, OperationType.LIST, 'logs/visitors');
+        setLoading(false);
       }
-
-      const visitorId = snap.docs[0].id;
-      await updateDoc(doc(db, 'visitors', visitorId), {
-        is_blocked: !currentStatus
-      });
-
-      setNotification({ 
-        message: `Visitor ${!currentStatus ? 'BLOCKED' : 'UNBLOCKED'} successfully`, 
-        type: 'success' 
-      });
-      fetchData();
-    } catch (err: any) {
-      console.error("Toggle Block Error:", err);
-      setNotification({ message: "Failed to update status", type: 'error' });
-    }
-  };
-
-  React.useEffect(() => {
-    if (user && isAdmin) {
-      fetchData();
-    }
-  }, [user, isAdmin, period, filters, dateRange, fetchData]);
-
-  React.useEffect(() => {
-    if (!isAdmin) return;
-    const q = query(collection(db, 'logs'), orderBy('timestamp', 'desc'), limit(1));
-    const unsubscribe = onSnapshot(q, () => {
-      fetchData();
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'logs');
+      setLoading(false);
     });
+
     return () => unsubscribe();
-  }, [fetchData, isAdmin]);
+  }, [user, isAdmin, period, filters, dateRange]);
+
+  React.useEffect(() => {
+    if (!isAdmin || activeTab !== 'students') return;
+    
+    const unsubscribe = onSnapshot(collection(db, 'visitors'), (snapshot) => {
+      const currentVisitors = snapshot.docs.map(doc => {
+        const vData = { id: doc.id, ...(doc.data() as any) };
+        visitorCache.current.set(vData.id, vData);
+        return vData;
+      });
+      setStudents(currentVisitors);
+    });
+
+    return () => unsubscribe();
+  }, [isAdmin, activeTab]);
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--bg-primary)]">
@@ -286,50 +255,6 @@ export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: 
   );
 
   if (!isAdmin) return null;
-
-  const migrateData = async () => {
-    if (!isAdmin) return;
-    setLoading(true);
-    try {
-      const q = collection(db, 'visitors');
-      const snap = await getDocs(q);
-      let count = 0;
-      
-      for (const vDoc of snap.docs) {
-        const data = vDoc.data();
-        let tag = data.rfid_tag || "";
-        
-        // Only migrate if it doesn't already match the format 00-00000-000
-        const formatRegex = /^\d{2}-\d{5}-\d{3}$/;
-        if (!formatRegex.test(tag)) {
-          // Attempt to clean and format
-          let digits = tag.replace(/\D/g, '');
-          if (digits.length >= 5) {
-            // Pad or truncate to 10 digits for a reasonable guess
-            // e.g. 202400001 -> 2400001 -> 24-00001-000
-            if (digits.startsWith('20')) digits = digits.slice(2); // Remove '20' from 2024
-            
-            // Ensure we have at least 10 digits by padding with zeros
-            digits = digits.padEnd(10, '0');
-            
-            const newTag = `${digits.slice(0, 2)}-${digits.slice(2, 7)}-${digits.slice(7, 10)}`;
-            
-            const { updateDoc, doc: firestoreDoc } = await import('firebase/firestore');
-            await updateDoc(firestoreDoc(db, 'visitors', vDoc.id), {
-              rfid_tag: newTag
-            });
-            count++;
-          }
-        }
-      }
-      setNotification({ message: `Migration Complete! Updated ${count} records.`, type: 'success' });
-      fetchData();
-    } catch (err: any) {
-      setNotification({ message: "Migration Failed: " + err.message, type: 'error' });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const seedData = async () => {
     if (!isAdmin) return;
@@ -347,7 +272,6 @@ export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: 
 
       setNotification({ message: "System Reset Successfully!", type: 'success' });
       setShowResetConfirm(false);
-      fetchData();
     } catch (err: any) {
       setNotification({ message: "Reset Failed: " + err.message, type: 'error' });
     } finally {
@@ -361,16 +285,13 @@ export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: 
     setRegistering(true);
 
     try {
-      const studentId = await generateStudentId();
       const fullName = `${newStudent.firstName} ${newStudent.middleName ? newStudent.middleName + ' ' : ''}${newStudent.lastName}`.trim();
       
       const studentData = {
         name: fullName,
         email: newStudent.email,
-        rfid_tag: studentId,
         college: newStudent.college,
         role: 'student',
-        is_blocked: false,
         created_at: Timestamp.now()
       };
 
@@ -390,8 +311,7 @@ export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: 
       setNotification({ message: "Student Saved to Database!", type: 'success' });
       setShowRegisterModal(false);
       setRegistrationPreview(null);
-      setNewStudent({ firstName: '', middleName: '', lastName: '', email: '', rfid_tag: '', college: COLLEGES[0] });
-      fetchData();
+      setNewStudent({ firstName: '', middleName: '', lastName: '', email: '', college: COLLEGES[0] });
     } catch (err: any) {
       setNotification({ message: "Save Failed: " + err.message, type: 'error' });
     } finally {
@@ -432,7 +352,7 @@ export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: 
     doc.text('DETAILED VISITOR ACTIVITY LOGS', 14, 20);
     
     const logData = logs.map(l => [
-      `${l.visitor_name}\n(${l.visitor_id})`,
+      `${l.visitor_name}\n(${l.visitor_rfid || l.visitor_id})`,
       l.visitor_college,
       l.purpose,
       format(new Date(l.timestamp), 'MMM dd, yyyy p')
@@ -517,7 +437,7 @@ export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: 
             <span className="text-[10px] font-black text-zinc-600 dark:text-zinc-400 uppercase tracking-widest">END:</span>
             <input type="date" className="bg-zinc-100 text-xs font-bold border-2 border-zinc-300 rounded-lg p-2 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)]" onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))} />
           </div>
-          <button onClick={fetchData} className="bg-[var(--neon-blue)] text-white dark:text-black text-[10px] font-black px-6 py-2 rounded-lg uppercase tracking-widest hover:scale-105 transition-transform shadow-md">APPLY RANGE</button>
+          <button className="bg-[var(--neon-blue)] text-white dark:text-black text-[10px] font-black px-6 py-2 rounded-lg uppercase tracking-widest hover:scale-105 transition-transform shadow-md">APPLY RANGE</button>
         </div>
       )}
 
@@ -797,10 +717,6 @@ export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: 
                     <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold uppercase tracking-widest mb-1">Institutional Email</span>
                     <span className="text-sm font-bold text-[var(--neon-blue)] lowercase">{registrationPreview.email}</span>
                   </div>
-                  <div className="flex flex-col border-b border-[var(--glass-border)] pb-3">
-                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold uppercase tracking-widest mb-1">Student ID / RFID</span>
-                    <span className="text-sm font-black text-[var(--neon-green)] tracking-widest">{registrationPreview.rfid_tag}</span>
-                  </div>
                   <div className="flex flex-col">
                     <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold uppercase tracking-widest mb-1">College / Office</span>
                     <span className="text-sm font-bold text-[var(--text-primary)] uppercase leading-tight">{registrationPreview.college}</span>
@@ -845,7 +761,6 @@ export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: 
                 <th className="p-4">College/Office</th>
                 <th className="p-4">Purpose</th>
                 <th className="p-4">Timestamp</th>
-                <th className="p-4">Security Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/30">
@@ -857,24 +772,6 @@ export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: 
                     <span className="px-2 py-1 bg-[var(--tag-bg)] rounded text-[10px] font-bold text-[var(--neon-blue)]">{log.purpose}</span>
                   </td>
                   <td className="p-4 text-[var(--text-secondary)] text-[10px]">{format(new Date(log.timestamp), 'MMM dd, p')}</td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-4">
-                      {log.is_blocked ? 
-                        <span className="text-[var(--neon-red)] flex items-center gap-1 text-[10px] font-bold tracking-tighter"><ShieldAlert size={14}/> BLOCKED</span> : 
-                        <span className="text-[var(--neon-green)] flex items-center gap-1 text-[10px] font-bold tracking-tighter"><Shield size={14}/> AUTHORIZED</span>
-                      }
-                      <button 
-                        onClick={() => toggleBlock(log.visitor_id, !!log.is_blocked)}
-                        className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${
-                          log.is_blocked 
-                            ? 'bg-[var(--neon-green)] text-black hover:scale-105' 
-                            : 'bg-[var(--neon-red)] text-white hover:scale-105'
-                        }`}
-                      >
-                        {log.is_blocked ? 'Unblock' : 'Block'}
-                      </button>
-                    </div>
-                  </td>
                 </tr>
               ))}
             </tbody>

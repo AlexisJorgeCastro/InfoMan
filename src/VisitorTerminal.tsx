@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { CreditCard, CheckCircle2, BookOpen, Search, Monitor, PenTool, Mail, Users, LogIn, LogOut, Sun, Moon } from 'lucide-react';
+import { CheckCircle2, BookOpen, Search, Monitor, PenTool, Mail, Users, LogIn, LogOut, Sun, Moon } from 'lucide-react';
 import { format } from 'date-fns';
 import { 
   collection, 
@@ -8,6 +8,8 @@ import {
   where, 
   getDocs, 
   addDoc, 
+  updateDoc,
+  doc,
   onSnapshot, 
   Timestamp,
   orderBy,
@@ -93,21 +95,24 @@ export default function VisitorTerminal({ user }: { user: any }) {
 
           if (!snapshot.empty) {
             const visitorDoc = snapshot.docs[0];
-            const visitorData = { id: visitorDoc.id, ...(visitorDoc.data() as object) };
-            // @ts-ignore
+            const visitorData = { id: visitorDoc.id, ...(visitorDoc.data() as any) };
+            
             if (visitorData.email && (!visitorData.name || visitorData.name === 'New Student')) {
-              // @ts-ignore
               visitorData.name = parseNameFromEmail(visitorData.email);
             }
-            // Override role if specified
-            // @ts-ignore
+            
             if (role !== '' || !visitorData.role) {
-               // @ts-ignore
                visitorData.role = role || visitorData.role || '';
             }
             setVisitor(visitorData);
+            
+            // Skip profile step if data exists
+            if (visitorData.college && visitorData.role) {
+              setStep('purpose');
+            } else {
+              setStep('profile');
+            }
           } else {
-            // Derive from email if not in database
             setVisitor({
               name: parseNameFromEmail(user.email),
               email: user.email,
@@ -115,8 +120,8 @@ export default function VisitorTerminal({ user }: { user: any }) {
               college: '',
               role: role
             });
+            setStep('profile');
           }
-          setStep('profile');
         } catch (err) {
           handleFirestoreError(err, OperationType.GET, 'visitors');
         } finally {
@@ -170,7 +175,7 @@ export default function VisitorTerminal({ user }: { user: any }) {
 
   const parseNameFromEmail = (email: string) => {
     if (!email) return "Visitor";
-    if (email === 'jcesperanza@neu.edu.ph') return "Jeremy Esperanza";
+    if (email === 'jcesperanza@neu.edu.ph') return "Jeremias Esperanza";
     const namePart = email.split('@')[0];
     return namePart
       .split('.')
@@ -178,25 +183,14 @@ export default function VisitorTerminal({ user }: { user: any }) {
       .join(' ');
   };
 
-  const identifyVisitor = async (data: { rfid_tag?: string; email?: string }) => {
+  const identifyVisitor = async (data: { email?: string }) => {
     if (!user) {
       setError("System Offline: Please Login");
       return;
     }
 
     try {
-      let q;
-      if (data.rfid_tag) {
-        // Ensure ID format consistency (XX-XXXXX-XXX)
-        let cleanTag = data.rfid_tag.replace(/\D/g, '');
-        if (cleanTag.length === 10) {
-          cleanTag = cleanTag.slice(0, 2) + '-' + cleanTag.slice(2, 7) + '-' + cleanTag.slice(7);
-        }
-        q = query(collection(db, 'visitors'), where('rfid_tag', '==', cleanTag));
-      } else {
-        q = query(collection(db, 'visitors'), where('email', '==', data.email));
-      }
-
+      const q = query(collection(db, 'visitors'), where('email', '==', data.email));
       const snapshot = await getDocs(q);
       
       let role = '';
@@ -209,13 +203,16 @@ export default function VisitorTerminal({ user }: { user: any }) {
         // If not found in database but we have an email, derive name from email
         if (data.email && data.email.endsWith('@neu.edu.ph')) {
           const derivedName = parseNameFromEmail(data.email);
-          setVisitor({
+          const newVisitor = {
             name: derivedName,
             email: data.email,
             rfid_tag: 'N/A',
             college: '',
-            role: role
-          });
+            role: role || 'student',
+            created_at: Timestamp.now()
+          };
+          const docRef = await addDoc(collection(db, 'visitors'), newVisitor);
+          setVisitor({ id: docRef.id, ...newVisitor });
           setStep('profile');
           return;
         }
@@ -223,7 +220,7 @@ export default function VisitorTerminal({ user }: { user: any }) {
       }
       
       const visitorDoc = snapshot.docs[0];
-      const visitorData = { id: visitorDoc.id, ...(visitorDoc.data() as object) };
+      const visitorData = { id: visitorDoc.id, ...(visitorDoc.data() as any) };
       
       // Use email-derived name if the database name is missing or generic
       // @ts-ignore
@@ -231,9 +228,6 @@ export default function VisitorTerminal({ user }: { user: any }) {
         // @ts-ignore
         visitorData.name = parseNameFromEmail(visitorData.email);
       }
-      
-      // @ts-ignore
-      if (visitorData.is_blocked) throw new Error("Access Denied: Blocked");
       
       // Override role if specified
       // @ts-ignore
@@ -243,7 +237,12 @@ export default function VisitorTerminal({ user }: { user: any }) {
       }
 
       setVisitor(visitorData);
-      setStep('profile');
+      
+      if (visitorData.college && visitorData.role) {
+        setStep('purpose');
+      } else {
+        setStep('profile');
+      }
     } catch (err: any) {
       if (err.message === "IDENTITY NOT RECOGNIZED" || err.message.includes("Access Denied")) {
         setError(err.message);
@@ -254,15 +253,45 @@ export default function VisitorTerminal({ user }: { user: any }) {
     }
   };
 
+  const saveProfile = async () => {
+    if (!visitor.college || !visitor.role) return;
+    
+    try {
+      if (visitor.id) {
+        // Update existing record
+        await updateDoc(doc(db, 'visitors', visitor.id), {
+          college: visitor.college,
+          role: visitor.role,
+          name: visitor.name // Ensure name is also updated if it was derived
+        });
+      } else {
+        // Create new record
+        const newVisitor = {
+          name: visitor.name,
+          email: visitor.email,
+          rfid_tag: visitor.rfid_tag || 'N/A',
+          college: visitor.college,
+          role: visitor.role,
+          created_at: Timestamp.now()
+        };
+        const docRef = await addDoc(collection(db, 'visitors'), newVisitor);
+        setVisitor({ ...visitor, id: docRef.id });
+      }
+      setStep('purpose');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'visitors');
+    }
+  };
+
   const submitLog = async (purpose: string) => {
     try {
       await addDoc(collection(db, 'logs'), {
         visitor_name: visitor.name,
         visitor_email: visitor.email,
-        visitor_id: visitor.rfid_tag,
+        visitor_id: visitor.id || visitor.rfid_tag, // Prefer document ID for reliable blocking
+        visitor_rfid: visitor.rfid_tag,
         visitor_college: visitor.college || 'N/A',
         visitor_role: visitor.role || 'student',
-        is_blocked: visitor.is_blocked || false,
         purpose,
         timestamp: Timestamp.now()
       });
@@ -330,6 +359,16 @@ export default function VisitorTerminal({ user }: { user: any }) {
       
       <div className="w-full max-w-2xl text-center z-10">
         <AnimatePresence mode="wait">
+          {error && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }} 
+              animate={{ opacity: 1, y: 0 }} 
+              exit={{ opacity: 0, y: -20 }}
+              className="fixed top-8 left-1/2 -translate-x-1/2 z-50 bg-red-500/10 border border-red-500/50 backdrop-blur-md text-red-500 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-xs shadow-[0_0_20px_rgba(239,68,68,0.2)]"
+            >
+              {error}
+            </motion.div>
+          )}
           {step === 'idle' && (
             <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <div className="mb-8 flex flex-col items-center gap-6">
@@ -387,14 +426,7 @@ export default function VisitorTerminal({ user }: { user: any }) {
                   </div>
 
                   <button 
-                    onClick={() => {
-                      if (visitor.college && visitor.role) {
-                        setStep('purpose');
-                      } else {
-                        setError("Please select both College and Role");
-                        setTimeout(() => setError(null), 3000);
-                      }
-                    }}
+                    onClick={saveProfile}
                     disabled={!visitor.college || !visitor.role}
                     className={`w-full py-4 rounded-xl font-black uppercase tracking-widest mt-4 transition-all ${
                       visitor.college && visitor.role
