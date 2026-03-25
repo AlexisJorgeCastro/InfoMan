@@ -393,7 +393,7 @@ export default function AdminDashboard({ user, isAdmin, theme, toggleTheme }: { 
           <select 
             value={period} 
             onChange={(e) => setPeriod(e.target.value)}
-            className="stat-card px-4 py-2 rounded-lg text-xs font-black bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--text-primary)] shadow-sm"
+            className="stat-card px-4 py-2 rounded-lg text-xs font-black bg-white dark:bg-zinc-800/50 border-2 border-zinc-300 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--text-primary)] shadow-sm"
           >
             <option value="today">TODAY</option>
             <option value="week">LAST 7 DAYS</option>
@@ -402,32 +402,32 @@ export default function AdminDashboard({ user, isAdmin, theme, toggleTheme }: { 
           </select>
           <button 
             onClick={() => setShowRegisterModal(true)}
-            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-[var(--neon-blue)] font-black text-xs bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 hover:bg-[var(--neon-blue)] hover:text-white dark:hover:text-black transition-all shadow-sm"
+            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-[var(--neon-blue)] font-black text-xs bg-white dark:bg-zinc-800/50 border-2 border-zinc-300 dark:border-zinc-700 hover:bg-[var(--neon-blue)] hover:text-white dark:hover:text-black transition-all shadow-sm"
           >
             <Users size={16} /> REGISTER STUDENT
           </button>
           <button 
             onClick={() => setShowResetConfirm(true)}
-            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-[var(--neon-red)] font-black text-xs bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 hover:bg-[var(--neon-red)] hover:text-white dark:hover:text-black transition-all shadow-sm"
+            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-[var(--neon-red)] font-black text-xs bg-white dark:bg-zinc-800/50 border-2 border-zinc-300 dark:border-zinc-700 hover:bg-[var(--neon-red)] hover:text-white dark:hover:text-black transition-all shadow-sm"
           >
             <RefreshCw size={16} /> RESET SYSTEM
           </button>
           <button 
             onClick={generatePDF}
-            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-[var(--neon-blue)] font-black text-xs bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 hover:bg-[var(--neon-blue)] hover:text-white dark:hover:text-black transition-all shadow-sm"
+            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-[var(--neon-blue)] font-black text-xs bg-white dark:bg-zinc-800/50 border-2 border-zinc-300 dark:border-zinc-700 hover:bg-[var(--neon-blue)] hover:text-white dark:hover:text-black transition-all shadow-sm"
           >
             <Download size={16} /> DOWNLOAD REPORT
           </button>
           <button 
             onClick={toggleTheme}
-            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-zinc-600 dark:text-zinc-400 font-black text-xs bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 hover:bg-zinc-900 dark:hover:bg-white hover:text-white dark:hover:text-black transition-all shadow-sm"
+            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-zinc-600 dark:text-zinc-400 font-black text-xs bg-white dark:bg-zinc-800/50 border-2 border-zinc-300 dark:border-zinc-700 hover:bg-zinc-900 dark:hover:bg-white hover:text-white dark:hover:text-black transition-all shadow-sm"
           >
             {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />} 
             {theme === 'dark' ? 'LIGHT MODE' : 'DARK MODE'}
           </button>
           <button 
             onClick={logout}
-            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-zinc-600 dark:text-zinc-400 font-black text-xs bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 hover:bg-zinc-900 dark:hover:bg-white hover:text-white dark:hover:text-black transition-all shadow-sm"
+            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-zinc-600 dark:text-zinc-400 font-black text-xs bg-white dark:bg-zinc-800/50 border-2 border-zinc-300 dark:border-zinc-700 hover:bg-zinc-900 dark:hover:bg-white hover:text-white dark:hover:text-black transition-all shadow-sm"
             title="Sign Out to Guest Mode"
           >
             <LogOut size={16} /> SIGN OUT
@@ -659,7 +659,7 @@ export default function AdminDashboard({ user, isAdmin, theme, toggleTheme }: { 
                       required
                       type="text" 
                       placeholder="JUAN"
-                      className="w-full bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--text-primary)]"
+                      className="w-full bg-white dark:bg-zinc-800/50 border-2 border-zinc-300 dark:border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--text-primary)]"
                       value={newStudent.firstName}
                       onChange={(e) => setNewStudent(prev => ({ ...prev, firstName: e.target.value }))}
                     />
@@ -669,7 +669,7 @@ export default function AdminDashboard({ user, isAdmin, theme, toggleTheme }: { 
                     <input 
                       type="text" 
                       placeholder="PROTASIO"
-                      className="w-full bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--text-primary)]"
+                      className="w-full bg-white dark:bg-zinc-800/50 border-2 border-zinc-300 dark:border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--text-primary)]"
                       value={newStudent.middleName}
                       onChange={(e) => setNewStudent(prev => ({ ...prev, middleName: e.target.value }))}
                     />
@@ -681,7 +681,7 @@ export default function AdminDashboard({ user, isAdmin, theme, toggleTheme }: { 
                     required
                     type="text" 
                     placeholder="DELA CRUZ"
-                    className="w-full bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--text-primary)]"
+                    className="w-full bg-white dark:bg-zinc-800/50 border-2 border-zinc-300 dark:border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--text-primary)]"
                     value={newStudent.lastName}
                     onChange={(e) => setNewStudent(prev => ({ ...prev, lastName: e.target.value }))}
                   />
@@ -689,7 +689,7 @@ export default function AdminDashboard({ user, isAdmin, theme, toggleTheme }: { 
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">College / Office</label>
                   <select 
-                    className="w-full bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 rounded-xl px-4 py-3 text-sm font-black focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--neon-blue)]"
+                    className="w-full bg-white dark:bg-zinc-800/50 border-2 border-zinc-300 dark:border-zinc-700 rounded-xl px-4 py-3 text-sm font-black focus:outline-none focus:ring-2 focus:ring-[var(--neon-blue)] text-[var(--neon-blue)]"
                     value={newStudent.college}
                     onChange={(e) => setNewStudent(prev => ({ ...prev, college: e.target.value }))}
                   >
