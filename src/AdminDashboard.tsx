@@ -73,7 +73,7 @@ const COLLEGES = [
   "College of Criminology"
 ];
 
-export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: boolean }) {
+export default function AdminDashboard({ user, isAdmin, theme, toggleTheme }: { user: any, isAdmin: boolean, theme: string, toggleTheme: () => void }) {
   const [logs, setLogs] = React.useState<any[]>([]);
   const [stats, setStats] = React.useState<any>({ total: 0, liveCount: 0, byPurpose: [], byCollege: [], dailyStats: [] });
   const [period, setPeriod] = React.useState('today');
@@ -352,7 +352,7 @@ export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: 
     doc.text('DETAILED VISITOR ACTIVITY LOGS', 14, 20);
     
     const logData = logs.map(l => [
-      `${l.visitor_name}\n(${l.visitor_rfid || l.visitor_id})`,
+      `${l.visitor_name}\n(${l.visitor_email})`,
       l.visitor_college,
       l.purpose,
       format(new Date(l.timestamp), 'MMM dd, yyyy p')
@@ -416,6 +416,13 @@ export default function AdminDashboard({ user, isAdmin }: { user: any, isAdmin: 
             className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-[var(--neon-blue)] font-black text-xs bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 hover:bg-[var(--neon-blue)] hover:text-white dark:hover:text-black transition-all shadow-sm"
           >
             <Download size={16} /> DOWNLOAD REPORT
+          </button>
+          <button 
+            onClick={toggleTheme}
+            className="stat-card px-6 py-2 rounded-full flex items-center gap-2 text-zinc-600 dark:text-zinc-400 font-black text-xs bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 hover:bg-zinc-900 dark:hover:bg-white hover:text-white dark:hover:text-black transition-all shadow-sm"
+          >
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />} 
+            {theme === 'dark' ? 'LIGHT MODE' : 'DARK MODE'}
           </button>
           <button 
             onClick={logout}

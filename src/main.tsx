@@ -192,13 +192,13 @@ function App() {
       <main>
         {view === 'admin' ? (
           isAdmin ? (
-            <AdminDashboard user={user} isAdmin={isAdmin} />
+            <AdminDashboard user={user} isAdmin={isAdmin} theme={theme} toggleTheme={toggleTheme} />
           ) : (
             <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--bg-primary)]">
               <div className="atmosphere" />
               <div className="stat-card p-12 rounded-[3rem] text-center max-w-md z-10 border-zinc-300 dark:border-zinc-800">
                 <Shield size={64} className="text-[var(--neon-red)] mx-auto mb-6" />
-                <h1 className="text-3xl font-black mb-4 glow-text">ACCESS DENIED</h1>
+                <h1 className="text-3xl font-black mb-4 glow-text text-[var(--neon-red)]">ACCESS DENIED</h1>
                 <p className="text-zinc-500 text-xs font-bold uppercase tracking-[0.2em] mb-8">
                   You do not have administrative privileges.
                 </p>
@@ -207,7 +207,7 @@ function App() {
                     signOut(auth);
                     setHasSelectedView(false);
                   }}
-                  className="w-full bg-zinc-900 text-white py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-black transition-all"
+                  className="w-full bg-zinc-900 dark:bg-white text-white dark:text-black py-4 rounded-2xl font-black uppercase tracking-widest hover:scale-105 transition-all"
                 >
                   Sign Out
                 </button>
@@ -215,7 +215,7 @@ function App() {
             </div>
           )
         ) : (
-          <VisitorTerminal user={user} />
+          <VisitorTerminal user={user} theme={theme} toggleTheme={toggleTheme} />
         )}
       </main>
     </div>

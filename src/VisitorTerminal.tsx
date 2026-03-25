@@ -72,7 +72,7 @@ const COLLEGES = [
 
 const ROLES = ['Student', 'Faculty', 'Staff'];
 
-export default function VisitorTerminal({ user }: { user: any }) {
+export default function VisitorTerminal({ user, theme, toggleTheme }: { user: any, theme: string, toggleTheme: () => void }) {
   const [step, setStep] = React.useState('idle');
   const [visitor, setVisitor] = React.useState<any>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -116,7 +116,6 @@ export default function VisitorTerminal({ user }: { user: any }) {
             setVisitor({
               name: parseNameFromEmail(user.email),
               email: user.email,
-              rfid_tag: 'N/A',
               college: '',
               role: role
             });
@@ -206,7 +205,6 @@ export default function VisitorTerminal({ user }: { user: any }) {
           const newVisitor = {
             name: derivedName,
             email: data.email,
-            rfid_tag: 'N/A',
             college: '',
             role: role || 'student',
             created_at: Timestamp.now()
@@ -269,7 +267,6 @@ export default function VisitorTerminal({ user }: { user: any }) {
         const newVisitor = {
           name: visitor.name,
           email: visitor.email,
-          rfid_tag: visitor.rfid_tag || 'N/A',
           college: visitor.college,
           role: visitor.role,
           created_at: Timestamp.now()
@@ -288,8 +285,7 @@ export default function VisitorTerminal({ user }: { user: any }) {
       await addDoc(collection(db, 'logs'), {
         visitor_name: visitor.name,
         visitor_email: visitor.email,
-        visitor_id: visitor.id || visitor.rfid_tag, // Prefer document ID for reliable blocking
-        visitor_rfid: visitor.rfid_tag,
+        visitor_id: visitor.id, // Prefer document ID for reliable blocking
         visitor_college: visitor.college || 'N/A',
         visitor_role: visitor.role || 'student',
         purpose,
@@ -357,6 +353,14 @@ export default function VisitorTerminal({ user }: { user: any }) {
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
       <div className="atmosphere" />
       
+      {/* Theme Toggle */}
+      <button 
+        onClick={toggleTheme}
+        className="fixed top-8 right-8 z-50 p-4 rounded-2xl bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-800 text-[var(--text-primary)] shadow-lg hover:scale-110 transition-all"
+      >
+        {theme === 'dark' ? <Sun size={24} /> : <Moon size={24} />}
+      </button>
+
       <div className="w-full max-w-2xl text-center z-10">
         <AnimatePresence mode="wait">
           {error && (
